@@ -575,11 +575,27 @@ def main(argv: list[str] | None = None) -> None:
 
     device = "cpu" if args.cpu else ("cuda" if torch.cuda.is_available() else "cpu")
     if device == "cpu" and not args.cpu:
-        print(
-            "note: no CUDA GPU detected, narrating on CPU (much slower). "
-            "If this machine has an NVIDIA GPU, see the README's GPU section — "
-            "on Windows, torch from PyPI is CPU-only."
-        )
+        import shutil
+
+        if shutil.which("nvidia-smi"):
+            # An NVIDIA driver is installed but torch can't reach it: this
+            # environment has CPU-only torch (the PyPI default on Windows)
+            print(
+                "note: this machine has an NVIDIA GPU, but this environment "
+                "has CPU-only torch, so narration runs on CPU (much slower).\n"
+                "To fix (see the README's 'Windows and GPU' section):\n"
+                "  1. reinstall cathy with the CUDA wheel index:\n"
+                "     uv tool install --reinstall --python 3.12 "
+                "--index https://download.pytorch.org/whl/cu128 "
+                "--index-strategy unsafe-best-match "
+                "git+https://github.com/cleanunicorn/cathy\n"
+                "  2. rebuild cached engine environments: cathy setup"
+            )
+        else:
+            print(
+                "note: no CUDA GPU detected, narrating on CPU (much slower). "
+                "Kokoro is the only engine with tolerable CPU speed."
+            )
     output = args.output or args.input.with_suffix(".wav")
     if args.output is None and args.input.suffix.lower() in EBOOK_FORMATS:
         print(

@@ -148,6 +148,30 @@ Kokoro is the right default for whole books; the others trade speed for
 expressiveness or cloning. Each engine environment is a few GB on disk (uv
 caches them; `uv cache clean` reclaims the space).
 
+## Troubleshooting
+
+**`Device: cpu` on a machine with an NVIDIA GPU** — the environment has
+CPU-only torch (the PyPI default on Windows). Reinstall with the CUDA index
+(see "Windows and GPU" above), then run `cathy setup` — cached engine
+environments keep their old torch until setup rebuilds them.
+
+**fish fails with `401`/gated-repo errors** — `fishaudio/s1-mini` requires a
+free authenticated Hugging Face account: accept the terms on the
+[model page](https://huggingface.co/fishaudio/s1-mini), create a
+[token](https://huggingface.co/settings/tokens), and set it as the `HF_TOKEN`
+environment variable (`export HF_TOKEN=...`; on Windows
+`setx HF_TOKEN ...` and open a new terminal).
+
+**`sox: not found` with the qwen engine** — install sox:
+`sudo apt install sox` / `winget install sox`.
+
+**CUDA out-of-memory** — qwen and fish each need ~6 GB VRAM; run one
+narration at a time on a 10 GB card, and close other GPU-heavy apps.
+
+**Engines still behave like an older cathy after upgrading** — run
+`cathy setup` after `uv tool upgrade cathy`; the per-engine environments are
+cached and only setup refreshes them.
+
 ## Notes
 
 - torch is capped below 2.9 everywhere: newer PyPI wheels bundle CUDA 13

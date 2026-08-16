@@ -298,13 +298,17 @@ class FishEngine(ClonedVoiceMixin):
         try:
             checkpoints = Path(snapshot_download("fishaudio/s1-mini"))
         except GatedRepoError:
+            set_token = (
+                "setx HF_TOKEN hf_yourtoken   (then open a NEW terminal)"
+                if sys.platform == "win32"
+                else "export HF_TOKEN=hf_yourtoken"
+            )
             sys.exit(
                 "error: fishaudio/s1-mini is a gated model; downloading it "
                 "needs a (free) authenticated Hugging Face account:\n"
                 "  1. accept the terms at https://huggingface.co/fishaudio/s1-mini\n"
                 "  2. create a token at https://huggingface.co/settings/tokens\n"
-                "  3. set the HF_TOKEN environment variable to it (or run: "
-                "hf auth login)\n"
+                f"  3. {set_token}\n"
                 "then retry."
             )
         precision = torch.bfloat16
