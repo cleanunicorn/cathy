@@ -99,6 +99,36 @@ class TestSplitSentences:
         assert groups == ["Aaaa aaa.", "Bbbb bbb.", "Cccc ccc."]
 
 
+class TestChapterSpec:
+    def test_ranges_and_singles(self):
+        from cathy.cli import parse_chapter_spec
+
+        assert parse_chapter_spec("3-5", 10) == {3, 4, 5}
+        assert parse_chapter_spec("1,4,7-9", 10) == {1, 4, 7, 8, 9}
+        assert parse_chapter_spec("-3", 10) == {1, 2, 3}
+        assert parse_chapter_spec("8-", 10) == {8, 9, 10}
+
+    def test_bad_specs_exit(self):
+        import pytest
+
+        from cathy.cli import parse_chapter_spec
+
+        for spec in ("abc", "1,,2", "1-2-3"):
+            with pytest.raises(SystemExit):
+                parse_chapter_spec(spec, 10)
+        with pytest.raises(SystemExit):
+            parse_chapter_spec("5-12", 10)
+
+
+class TestDurationText:
+    def test_buckets(self):
+        from cathy.cli import duration_text
+
+        assert duration_text(0.4) == "<1 min"
+        assert duration_text(23.4) == "23 min"
+        assert duration_text(154) == "2 h 34 min"
+
+
 class TestFfmpegHelpers:
     def test_atempo_within_range(self):
         assert atempo_chain(1.5) == "atempo=1.5"

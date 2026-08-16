@@ -93,6 +93,8 @@ cathy book.txt -o book.mp3        # any format ffmpeg understands
 cathy book.txt -v female          # or male (default), british-male, ...
 cathy book.txt -v af_heart:2,af_bella:1   # blend voices (weighted)
 cathy book.txt -s 1.2             # 20% faster; native on kokoro, ffmpeg atempo elsewhere
+cathy book.epub --dry-run         # preview chapters, skips, and duration estimates
+cathy book.epub --chapters 3-10   # narrate part of the book
 cathy --list-voices
 cathy convert book.wav book.m4b   # convert existing audio, no re-narration
 cathy convert book.wav fast.m4b -s 1.25   # re-time while converting

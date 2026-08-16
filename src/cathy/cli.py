@@ -56,8 +56,10 @@ subcommands:
 
 examples:
   cathy book.mobi -o book.m4b            audiobook with chapter markers
+  cathy book.epub --dry-run              preview chapters and what gets skipped
   cathy notes.txt -v female -s 1.2       pick a voice, 20% faster
   cathy book.epub -e fish -v sample.wav  clone the voice in sample.wav
+  cathy book.epub --chapters 3-10        narrate part of the book
   cathy convert book.wav book.m4b        re-container without re-narrating
 """
 
@@ -116,6 +118,18 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
         default=1.0,
         help="speech speed; kokoro re-times natively, other engines are "
         "re-timed with ffmpeg's pitch-preserving tempo filter; default: 1.0",
+    )
+    parser.add_argument(
+        "--dry-run",
+        action="store_true",
+        help="list the chapters that would be narrated (after skipping and "
+        "--chapters selection) with duration estimates, then exit",
+    )
+    parser.add_argument(
+        "--chapters",
+        metavar="SPEC",
+        help="narrate only these chapters, e.g. '3-10' or '1,4,7-9'; numbers "
+        "as shown by --dry-run",
     )
     parser.add_argument(
         "--all",
@@ -303,6 +317,79 @@ def load_book(path: Path) -> tuple[BookInfo, list[Chapter]]:
     )
 
 
+def parse_chapter_spec(spec: str, count: int) -> set[int]:
+    """Parse a --chapters spec like '3-10' or '1,4,7-' into chapter numbers."""
+    chosen: set[int] = set()
+    try:
+        for part in spec.split(","):
+            first, dash, last = part.strip().partition("-")
+            if dash:
+                chosen.update(range(int(first or 1), int(last or count) + 1))
+            else:
+                chosen.add(int(first))
+    except ValueError:
+        sys.exit(f"error: bad --chapters spec {spec!r} (e.g. '3-10' or '1,4,7-9')")
+    bad = sorted(n for n in chosen if not 1 <= n <= count)
+    if bad:
+        sys.exit(
+            f"error: --chapters selects chapter {bad[0]}, but the book has "
+            f"{count} (see --dry-run for the list)"
+        )
+    return chosen
+
+
+def prepare_chapters(args: argparse.Namespace) -> tuple[BookInfo, list[tuple[int, Chapter]]]:
+    """Load, filter, normalize, number, and select chapters for narration.
+
+    Returns (info, [(chapter_number, chapter)]); numbers are stable across
+    --chapters selection so they always match the --dry-run listing.
+    """
+    info, chapters = load_book(args.input)
+    if not args.all:
+        chapters, skipped = drop_front_back_matter(chapters)
+        if skipped:
+            print(f"Skipping (use --all to keep): {', '.join(skipped)}")
+    chapters = normalize_chapters(chapters)
+    if not chapters:
+        sys.exit("error: input file contains no text")
+    numbered = [
+        (i, (title or f"Chapter {i}", paragraphs))
+        for i, (title, paragraphs) in enumerate(chapters, start=1)
+    ]
+    if args.chapters:
+        chosen = parse_chapter_spec(args.chapters, len(numbered))
+        numbered = [(n, chapter) for n, chapter in numbered if n in chosen]
+    return info, numbered
+
+
+def duration_text(minutes: float) -> str:
+    if minutes < 1:
+        return "<1 min"
+    if minutes < 60:
+        return f"{round(minutes)} min"
+    return f"{int(minutes // 60)} h {round(minutes % 60):02d} min"
+
+
+def print_dry_run(
+    info: BookInfo, numbered: list[tuple[int, Chapter]], speed: float
+) -> None:
+    """List what would be narrated, with ~150 wpm duration estimates."""
+    if info.title:
+        by = f" — {info.author}" if info.author else ""
+        print(f"Book: {info.title}{by}")
+    total_words = 0
+    for n, (title, paragraphs) in numbered:
+        words = sum(len(p.split()) for p in paragraphs)
+        total_words += words
+        estimate = duration_text(words / 150 / speed)
+        print(f"{n:4}. {title[:56]:56} {len(paragraphs):5} para  ~{estimate}")
+    total = duration_text(total_words / 150 / speed)
+    print(
+        f"\n{len(numbered)} chapters, {total_words:,} words — about {total} "
+        f"of audio at speed {speed:g} (~150 wpm)"
+    )
+
+
 def trim_edges(audio, sr: int, threshold: float = 2e-3):
     """Trim near-silence off both ends of a segment, keeping a little padding.
 
@@ -345,12 +432,16 @@ def narrate_chapters(
         return np.zeros(int(sr * seconds), dtype=np.float32)
 
     workdir.mkdir(parents=True, exist_ok=True)
+    # Hash-only names: checkpoints survive --chapters selection changes.
     paths = [
-        workdir / f"chapter-{i:04d}-{chapter_hash(fingerprint, title, paragraphs)}.wav"
-        for i, (title, paragraphs) in enumerate(chapters, start=1)
+        workdir / f"chapter-{chapter_hash(fingerprint, title, paragraphs)}.wav"
+        for title, paragraphs in chapters
     ]
-    for stale in set(workdir.glob("*.wav")) - set(paths):
-        stale.unlink()
+    # Half-written leftovers are useless; finished checkpoints with other
+    # hashes stay — a different --chapters selection may still want them,
+    # and the whole directory is removed after a successful run.
+    for leftover in workdir.glob("*.tmp.wav"):
+        leftover.unlink()
     done = sum(1 for p in paths if p.exists())
     if done:
         print(f"Resuming: {done} of {len(chapters)} chapters already narrated.")
@@ -715,6 +806,13 @@ def main(argv: list[str] | None = None) -> None:
     if not args.input.exists():
         sys.exit(f"error: {args.input} not found")
 
+    if args.dry_run:
+        # Needs no engine (and must not trigger an engine-environment
+        # download) — preview and exit.
+        info, numbered = prepare_chapters(args)
+        print_dry_run(info, numbered, args.speed)
+        return
+
     if not engine_available(args.engine):
         delegate(args.engine, argv)
 
@@ -751,18 +849,8 @@ def main(argv: list[str] | None = None) -> None:
             f"tip: writing plain {output.name}; use `-o {output.stem}.m4b` "
             "for an audiobook with chapter markers"
         )
-    info, chapters = load_book(args.input)
-    if not args.all:
-        chapters, skipped = drop_front_back_matter(chapters)
-        if skipped:
-            print(f"Skipping (use --all to keep): {', '.join(skipped)}")
-    chapters = normalize_chapters(chapters)
-    if not chapters:
-        sys.exit("error: input file contains no text")
-    chapters = [
-        (title or f"Chapter {i}", paragraphs)
-        for i, (title, paragraphs) in enumerate(chapters, start=1)
-    ]
+    info, numbered = prepare_chapters(args)
+    chapters = [chapter for _, chapter in numbered]
 
     # Kokoro re-times speech natively (best quality); the other engines have
     # no speed input, so their audio is re-timed afterwards with ffmpeg.
