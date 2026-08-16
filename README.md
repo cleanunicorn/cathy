@@ -8,21 +8,38 @@ a whole book in minutes.
 
 ## Requirements
 
-- Python 3.12+ managed via [uv](https://docs.astral.sh/uv/)
+- [uv](https://docs.astral.sh/uv/)
 - `espeak-ng` (phonemizer backend): `sudo apt install espeak-ng`
 - `ffmpeg` (only for non-wav output formats)
 - NVIDIA GPU recommended (~2–3 GB VRAM for Kokoro); falls back to CPU
 
+## Install
+
+```sh
+uv tool install git+https://github.com/cleanunicorn/cathy
+```
+
+That puts `cathy` on your PATH, runnable from anywhere. To use a non-default
+engine, install with its extra instead (one engine per install — their
+dependency pins conflict):
+
+```sh
+uv tool install --reinstall "cathy[qwen] @ git+https://github.com/cleanunicorn/cathy"
+```
+
+Upgrade later with `uv tool upgrade cathy`; developing from a clone of this
+repo, use `uv run cathy ...` as shown below without installing.
+
 ## Usage
 
 ```sh
-uv run cathy book.txt                    # writes book.wav
-uv run cathy book.mobi -o book.m4b       # audiobook with chapter markers
-uv run cathy book.txt -o book.mp3        # any format ffmpeg understands
-uv run cathy book.txt -v female          # or male (default), british-male, ...
-uv run cathy book.txt -v af_heart:2,af_bella:1   # blend voices (weighted)
-uv run cathy book.txt -s 1.2             # 20% faster speech
-uv run cathy --list-voices
+cathy book.txt                    # writes book.wav
+cathy book.mobi -o book.m4b       # audiobook with chapter markers
+cathy book.txt -o book.mp3        # any format ffmpeg understands
+cathy book.txt -v female          # or male (default), british-male, ...
+cathy book.txt -v af_heart:2,af_bella:1   # blend voices (weighted)
+cathy book.txt -s 1.2             # 20% faster speech
+cathy --list-voices
 ```
 
 The first run downloads the model (~330 MB) from Hugging Face; everything after
@@ -42,7 +59,9 @@ remember your position. Other formats (mp3, wav) get one continuous stream.
 ## Engines
 
 Each non-default engine lives in its own dependency environment (their pinned
-torch/transformers versions conflict), selected with `uv run --extra <name>`:
+torch/transformers versions conflict). From a clone of this repo, select one
+with `uv run --extra <name>`; for a global install, reinstall the tool with
+the matching extra (see Install above):
 
 ```sh
 uv run cathy book.mobi -o book.m4b                              # kokoro (default)

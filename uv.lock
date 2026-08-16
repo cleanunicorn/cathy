@@ -552,6 +552,7 @@ source = { editable = "." }
 dependencies = [
     { name = "beautifulsoup4" },
     { name = "ebooklib" },
+    { name = "en-core-web-sm" },
     { name = "kokoro" },
     { name = "mobi" },
     { name = "numpy", version = "1.26.4", source = { registry = "https://pypi.org/simple" }, marker = "(python_full_version < '3.13' and extra == 'extra-5-cathy-chatterbox') or extra == 'extra-5-cathy-fish' or (extra == 'extra-5-cathy-chatterbox' and extra == 'extra-5-cathy-qwen')" },
@@ -577,13 +578,14 @@ requires-dist = [
     { name = "beautifulsoup4", specifier = ">=4.12" },
     { name = "chatterbox-tts", marker = "extra == 'chatterbox'", git = "https://github.com/resemble-ai/chatterbox?rev=5de7a54aa4e5e2baadb0182dde554908b48b85c2" },
     { name = "ebooklib", specifier = ">=0.19" },
+    { name = "en-core-web-sm", url = "https://github.com/explosion/spacy-models/releases/download/en_core_web_sm-3.8.0/en_core_web_sm-3.8.0-py3-none-any.whl" },
     { name = "fish-speech", marker = "extra == 'fish'", git = "https://github.com/fishaudio/fish-speech?rev=ec8bf2b343a5d601d77fe2ae5008bdc6b53034f5" },
     { name = "kokoro", specifier = ">=0.9.4" },
     { name = "mobi", specifier = ">=0.4" },
     { name = "numpy", specifier = ">=1.26" },
     { name = "qwen-tts", marker = "extra == 'qwen'", specifier = ">=0.1.1" },
     { name = "soundfile", specifier = ">=0.14.0" },
-    { name = "torch", specifier = ">=2.8.0", index = "https://download.pytorch.org/whl/cu128" },
+    { name = "torch", specifier = ">=2.6.0,<2.13", index = "https://download.pytorch.org/whl/cu128" },
     { name = "tqdm", specifier = ">=4.70.0" },
 ]
 provides-extras = ["qwen", "chatterbox", "fish"]
@@ -1269,6 +1271,14 @@ wheels = [
 [package.optional-dependencies]
 torch = [
     { name = "torch" },
+]
+
+[[package]]
+name = "en-core-web-sm"
+version = "3.8.0"
+source = { url = "https://github.com/explosion/spacy-models/releases/download/en_core_web_sm-3.8.0/en_core_web_sm-3.8.0-py3-none-any.whl" }
+wheels = [
+    { url = "https://github.com/explosion/spacy-models/releases/download/en_core_web_sm-3.8.0/en_core_web_sm-3.8.0-py3-none-any.whl", hash = "sha256:1932429db727d4bff3deed6b34cfc05df17794f4a52eeb26cf8928f7c1a0fb85" },
 ]
 
 [[package]]

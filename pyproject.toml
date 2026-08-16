@@ -10,18 +10,31 @@ requires-python = ">=3.12"
 dependencies = [
     "beautifulsoup4>=4.12",
     "ebooklib>=0.19",
+    # spacy model misaki needs; declared here so no runtime `pip install`
+    # happens (uv tool environments ship without pip)
+    "en-core-web-sm @ https://github.com/explosion/spacy-models/releases/download/en_core_web_sm-3.8.0/en_core_web_sm-3.8.0-py3-none-any.whl",
     "kokoro>=0.9.4",
     "mobi>=0.4",
     "numpy>=1.26",
     "soundfile>=0.14.0",
-    "torch>=2.8.0",
+    # <2.13: the cu130 builds bundled with torch 2.13 hit a cuDNN version
+    # mismatch; >=2.6 leaves room for chatterbox's exact pin outside this repo
+    "torch>=2.6.0,<2.13",
     "tqdm>=4.70.0",
 ]
 
+# Engine extras use direct git references so `uv tool install` from anywhere
+# resolves the same pinned code this repo was tested against:
+# - fish-speech: last S1-era commit (later releases are S2-only, 24 GB VRAM)
+# - chatterbox: Chatterbox-Nano release, absent from PyPI
 [project.optional-dependencies]
 qwen = ["qwen-tts>=0.1.1"]
-chatterbox = ["chatterbox-tts"]
-fish = ["fish-speech"]
+chatterbox = [
+    "chatterbox-tts @ git+https://github.com/resemble-ai/chatterbox@5de7a54aa4e5e2baadb0182dde554908b48b85c2",
+]
+fish = [
+    "fish-speech @ git+https://github.com/fishaudio/fish-speech@ec8bf2b343a5d601d77fe2ae5008bdc6b53034f5",
+]
 
 [project.scripts]
 cathy = "cathy:main"
@@ -34,9 +47,6 @@ explicit = true
 [tool.uv.sources]
 torch = { index = "pytorch-cu128" }
 torchaudio = { index = "pytorch-cu128" }
-fish-speech = { git = "https://github.com/fishaudio/fish-speech", rev = "ec8bf2b343a5d601d77fe2ae5008bdc6b53034f5" }
-# PyPI chatterbox-tts predates Chatterbox-Nano; nano shipped on git only
-chatterbox-tts = { git = "https://github.com/resemble-ai/chatterbox", rev = "5de7a54aa4e5e2baadb0182dde554908b48b85c2" }
 
 [tool.uv]
 # The engine extras pin mutually incompatible torch/transformers versions, so
