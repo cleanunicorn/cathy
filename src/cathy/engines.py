@@ -271,6 +271,17 @@ class FishEngine(ClonedVoiceMixin):
 
         from fish_speech.inference_engine import TTSInferenceEngine
 
+        # The generation loop runs in a worker thread and draws its own tqdm
+        # bar per paragraph (stream redirection can't reach it); disable it at
+        # the module reference it actually uses.
+        from functools import partial
+
+        from tqdm import tqdm as _tqdm
+
+        from fish_speech.models.text2semantic import inference as _t2s
+
+        _t2s.tqdm = partial(_tqdm, disable=True)
+
         import torch
         from fish_speech.models.dac.inference import load_model as load_decoder_model
         from fish_speech.models.text2semantic.inference import launch_thread_safe_queue

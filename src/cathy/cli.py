@@ -391,12 +391,24 @@ def delegate(engine: str, argv: list[str]) -> None:
         )
     print(f"Engine {engine!r} runs in its own environment (first use downloads it)...")
     result = subprocess.run(
-        # python 3.12: the engines' pinned dependency sets are validated there
-        ["uv", "tool", "run", "--python", "3.12", "--from", engine_spec(engine)]
-        + ["cathy", *argv],
+        delegate_cmd(engine) + ["cathy", *argv],
         env={**os.environ, "CATHY_DELEGATED": "1"},
     )
     sys.exit(result.returncode)
+
+
+def delegate_cmd(engine: str) -> list[str]:
+    """uv invocation prefix for running cathy with the given engine's extra."""
+    import os
+
+    source = os.environ.get("CATHY_SOURCE", CATHY_SOURCE)
+    if source.startswith("git+"):
+        # python 3.12: the engines' pinned dependency sets are validated there
+        return ["uv", "tool", "run", "--python", "3.12", "--from", engine_spec(engine)]
+    # A local CATHY_SOURCE is a development tree: run it as a project so the
+    # environment always tracks the current source (uv's URL-spec caching
+    # would serve stale builds)
+    return ["uv", "run", "--project", source, "--extra", engine]
 
 
 def setup(engines: list[str]) -> None:
@@ -406,11 +418,13 @@ def setup(engines: list[str]) -> None:
         if engine not in ENGINES or engine == "kokoro":
             sys.exit(f"error: unknown engine {engine!r}; options: qwen, chatterbox, fish")
         print(f"Setting up {engine}...")
-        # --refresh so `cathy setup` after an upgrade also updates the
-        # cached engine environments to the latest cathy
+        cmd = delegate_cmd(engine)
+        if cmd[:3] == ["uv", "tool", "run"]:
+            # --refresh so `cathy setup` after an upgrade also updates the
+            # cached engine environments to the latest cathy
+            cmd.insert(3, "--refresh")
         result = subprocess.run(
-            ["uv", "tool", "run", "--refresh", "--python", "3.12"]
-            + ["--from", engine_spec(engine), "cathy", "--list-voices"],
+            cmd + ["cathy", "--list-voices"],
             stdout=subprocess.DEVNULL,
         )
         if result.returncode != 0:
