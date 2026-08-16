@@ -20,7 +20,13 @@ VOICES = {
 }
 
 SAMPLE_RATE = 24_000
-PAUSE_SECONDS = 0.35  # silence inserted between paragraphs
+# Graded pauses, audiobook-style: short between sentences (Kokoro chunk
+# boundaries fall on sentence ends), longer between paragraphs, longest after
+# a chapter heading.
+SENTENCE_PAUSE = 0.15
+PARAGRAPH_PAUSE = 0.55
+HEADING_PAUSE = 1.0
+EDGE_KEEP_SECONDS = 0.05  # padding kept when trimming silence off segment edges
 CHAPTER_FORMATS = (".m4b", ".m4a")  # containers that get chapter markers
 
 # A chapter is (title, paragraphs). Titles become m4b chapter markers.
@@ -46,7 +52,8 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
         "-v",
         "--voice",
         default="af_heart",
-        help="voice name (see --list-voices); default: af_heart",
+        help="voice name, or a blend like 'af_heart:2,af_bella:1' "
+        "(see --list-voices); default: af_heart",
     )
     parser.add_argument(
         "-s", "--speed", type=float, default=1.0, help="speech speed; default: 1.0"
@@ -174,6 +181,42 @@ def load_chapters(path: Path) -> list[Chapter]:
     ]
 
 
+def resolve_voice(pipeline, spec: str):
+    """Resolve a voice spec, supporting weighted blends like 'af_heart:2,af_bella:1'.
+
+    Plain names and unweighted blends ('af_heart,af_bella') are passed through
+    to Kokoro, which averages them; weights need the tensor mix done here.
+    """
+    if ":" not in spec:
+        return spec
+
+    import torch
+
+    names, weights = [], []
+    for part in spec.split(","):
+        name, _, weight = part.partition(":")
+        names.append(name.strip())
+        weights.append(float(weight or 1))
+    packs = torch.stack([pipeline.load_single_voice(n) for n in names])
+    w = torch.tensor(weights, dtype=packs.dtype) / sum(weights)
+    return torch.sum(packs * w.reshape(-1, *[1] * (packs.dim() - 1)), dim=0)
+
+
+def trim_edges(audio, threshold: float = 2e-3):
+    """Trim near-silence off both ends of a segment, keeping a little padding.
+
+    Kokoro segments carry variable amounts of edge silence; trimming it and
+    inserting explicit pauses gives the narration a uniform rhythm.
+    """
+    import numpy as np
+
+    loud = np.flatnonzero(np.abs(audio) > threshold)
+    if loud.size == 0:
+        return audio
+    keep = int(SAMPLE_RATE * EDGE_KEEP_SECONDS)
+    return audio[max(0, loud[0] - keep) : min(len(audio), loud[-1] + keep)]
+
+
 def narrate(
     chapters: list[Chapter], voice: str, speed: float, device: str | None, wav_path: Path
 ) -> list[tuple[str, float, float]]:
@@ -184,8 +227,13 @@ def narrate(
     from tqdm import tqdm
 
     lang_code = voice[0]  # Kokoro convention: voice prefix selects the language
-    pipeline = KPipeline(lang_code=lang_code, device=device)
-    pause = np.zeros(int(SAMPLE_RATE * PAUSE_SECONDS), dtype=np.float32)
+    pipeline = KPipeline(
+        lang_code=lang_code, repo_id="hexgrad/Kokoro-82M", device=device
+    )
+    voice = resolve_voice(pipeline, voice)
+
+    def silence(seconds: float):
+        return np.zeros(int(SAMPLE_RATE * seconds), dtype=np.float32)
 
     marks = []
     written = 0
@@ -196,15 +244,24 @@ def narrate(
         ) as f,
         tqdm(total=total, unit="para", desc="Narrating") as progress,
     ):
+        def emit(chunk) -> None:
+            nonlocal written
+            f.write(chunk)
+            written += len(chunk)
+
         for title, paragraphs in chapters:
             start = written
-            for paragraph in paragraphs:
+            for i, paragraph in enumerate(paragraphs):
+                first = True
                 for _, _, audio in pipeline(paragraph, voice=voice, speed=speed):
-                    chunk = audio.numpy()
-                    f.write(chunk)
-                    written += len(chunk)
-                f.write(pause)
-                written += len(pause)
+                    if not first:
+                        emit(silence(SENTENCE_PAUSE))
+                    emit(trim_edges(audio.numpy()))
+                    first = False
+                # A chapter's first paragraph is usually its heading; give it
+                # the longer, audiobook-style pause.
+                is_heading = i == 0 and paragraph == title
+                emit(silence(HEADING_PAUSE if is_heading else PARAGRAPH_PAUSE))
                 progress.update(1)
             marks.append((title, start / SAMPLE_RATE, written / SAMPLE_RATE))
     return marks

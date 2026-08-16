@@ -18,6 +18,7 @@ uv run cathy book.txt                    # writes book.wav
 uv run cathy book.mobi -o book.m4b       # audiobook with chapter markers
 uv run cathy book.txt -o book.mp3        # any format ffmpeg understands
 uv run cathy book.txt -v bm_fable        # pick a narrator voice
+uv run cathy book.txt -v af_heart:2,af_bella:1   # blend voices (weighted)
 uv run cathy book.txt -s 1.2             # 20% faster speech
 uv run cathy --list-voices
 ```
@@ -46,6 +47,11 @@ audio in a few minutes.
 - Torch is pinned to the CUDA 12.8 wheel index in `pyproject.toml`; the
   default cu130 build hits a cuDNN version mismatch (as of torch 2.13).
 - Voices are Kokoro's built-in presets; the first letter selects the language
-  (`a` American, `b` British English). No voice cloning — if you need a custom
-  voice, [Chatterbox](https://huggingface.co/ResembleAI/chatterbox) is the
-  natural companion model.
+  (`a` American, `b` British English). Blending averages the voices' style
+  vectors — `af_heart:2,af_bella:1` is two parts heart, one part bella — which
+  lets you tune a narrator between presets. No voice cloning — if you need a
+  custom voice, [Chatterbox](https://huggingface.co/ResembleAI/chatterbox) is
+  the natural companion model.
+- Cadence is audiobook-style: segment edges are trimmed of stray silence, then
+  explicit pauses are inserted — 0.15 s between sentences of long paragraphs,
+  0.55 s between paragraphs, 1 s after a chapter heading.
