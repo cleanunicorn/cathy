@@ -43,6 +43,9 @@ fish = [
 [project.scripts]
 cathy = "cathy:main"
 
+[dependency-groups]
+dev = ["pytest>=8"]
+
 # On Windows, PyPI torch wheels are CPU-only; CUDA builds come from the
 # pytorch.org index (on Linux the PyPI wheels already bundle CUDA 12.8)
 [[tool.uv.index]]

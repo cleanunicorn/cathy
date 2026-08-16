@@ -1,0 +1,22 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v5
+        with:
+          python-version: "3.12"
+      # The tests cover the pure text/audio-plumbing code, so install only its
+      # direct dependencies — pulling the full project would download torch
+      # and the TTS models.
+      - run: uv venv && uv pip install pytest beautifulsoup4 ebooklib numpy soundfile tqdm
+      - run: uv run --no-project pytest -q
+        env:
+          PYTHONPATH: src
