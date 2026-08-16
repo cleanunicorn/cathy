@@ -1,6 +1,6 @@
 [project]
 name = "cathy"
-version = "0.1.0"
+version = "0.2.0"
 description = "Fully local text-to-speech narration (Kokoro-82M, GPU-accelerated)"
 readme = "README.md"
 authors = [
@@ -44,6 +44,9 @@ fish = [
 cathy = "cathy:main"
 
 [tool.uv]
+# Rebuild when source changes, not only pyproject.toml — otherwise delegated
+# engine environments built from a local CATHY_SOURCE serve stale code
+cache-keys = [{ file = "pyproject.toml" }, { file = "src/**/*.py" }]
 # The engine extras pin mutually incompatible torch/transformers versions, so
 # they are mutually exclusive environments: uv run --extra qwen cathy ...
 conflicts = [

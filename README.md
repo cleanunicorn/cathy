@@ -77,9 +77,10 @@ cathy book.mobi -o book.m4b       # audiobook with chapter markers
 cathy book.txt -o book.mp3        # any format ffmpeg understands
 cathy book.txt -v female          # or male (default), british-male, ...
 cathy book.txt -v af_heart:2,af_bella:1   # blend voices (weighted)
-cathy book.txt -s 1.2             # 20% faster speech
+cathy book.txt -s 1.2             # 20% faster; native on kokoro, ffmpeg atempo elsewhere
 cathy --list-voices
 cathy convert book.wav book.m4b   # convert existing audio, no re-narration
+cathy convert book.wav fast.m4b -s 1.25   # re-time while converting
 ```
 
 Narrating to `.wav` also writes `book.chapters.txt` next to it, so a later

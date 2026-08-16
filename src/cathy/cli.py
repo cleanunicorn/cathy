@@ -68,7 +68,8 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
         "--speed",
         type=float,
         default=1.0,
-        help="speech speed (kokoro only); default: 1.0",
+        help="speech speed; kokoro re-times natively, other engines are "
+        "re-timed with ffmpeg's pitch-preserving tempo filter; default: 1.0",
     )
     parser.add_argument(
         "--cpu", action="store_true", help="force CPU even if a GPU is available"
@@ -291,16 +292,50 @@ def probe_duration(path: Path) -> float:
         return 0.0
 
 
+def atempo_chain(speed: float) -> str:
+    """Build an ffmpeg atempo filter chain (each stage handles 0.5-2.0x)."""
+    factors = []
+    while speed > 2.0:
+        factors.append(2.0)
+        speed /= 2.0
+    while speed < 0.5:
+        factors.append(0.5)
+        speed /= 0.5
+    factors.append(speed)
+    return ",".join(f"atempo={f:g}" for f in factors)
+
+
+def scale_metadata(metadata: str | None, speed: float) -> str | None:
+    """Rescale chapter timestamps in ffmetadata text for tempo-changed audio."""
+    import re
+
+    if metadata is None or speed == 1.0:
+        return metadata
+    return re.sub(
+        r"^(START=|END=)(\d+)$",
+        lambda m: f"{m.group(1)}{int(int(m.group(2)) / speed)}",
+        metadata,
+        flags=re.MULTILINE,
+    )
+
+
 def convert(
-    wav_path: Path, output: Path, metadata: str | None, duration: float
+    wav_path: Path,
+    output: Path,
+    metadata: str | None,
+    duration: float,
+    speed: float = 1.0,
 ) -> None:
     """Convert audio to the requested container via ffmpeg.
 
     metadata is ffmetadata text with chapter marks; it is embedded when the
-    output container supports chapters (.m4b/.m4a).
+    output container supports chapters (.m4b/.m4a). speed != 1 re-times the
+    audio with the atempo filter (pitch-preserving), chapters included.
     """
     from tqdm import tqdm
 
+    metadata = scale_metadata(metadata, speed)
+    duration /= speed
     cmd = ["ffmpeg", "-y", "-loglevel", "error", "-nostats", "-progress", "pipe:1"]
     cmd += ["-i", str(wav_path)]
     with tempfile.NamedTemporaryFile("w", suffix=".txt", delete_on_close=False) as meta:
@@ -310,6 +345,10 @@ def convert(
                 meta.close()
                 cmd += ["-f", "ffmetadata", "-i", meta.name, "-map_metadata", "1"]
                 cmd += ["-map_chapters", "1"]
+        # Output options must come after every -i input
+        if speed != 1.0:
+            cmd += ["-filter:a", atempo_chain(speed)]
+        if output.suffix.lower() in CHAPTER_FORMATS:
             cmd += ["-c:a", "aac", "-b:a", "96k", "-f", "ipod"]
         cmd.append(str(output))
         proc = subprocess.Popen(cmd, stdout=subprocess.PIPE, text=True)
@@ -367,9 +406,11 @@ def setup(engines: list[str]) -> None:
         if engine not in ENGINES or engine == "kokoro":
             sys.exit(f"error: unknown engine {engine!r}; options: qwen, chatterbox, fish")
         print(f"Setting up {engine}...")
+        # --refresh so `cathy setup` after an upgrade also updates the
+        # cached engine environments to the latest cathy
         result = subprocess.run(
-            ["uv", "tool", "run", "--python", "3.12", "--from", engine_spec(engine)]
-            + ["cathy", "--list-voices"],
+            ["uv", "tool", "run", "--refresh", "--python", "3.12"]
+            + ["--from", engine_spec(engine), "cathy", "--list-voices"],
             stdout=subprocess.DEVNULL,
         )
         if result.returncode != 0:
@@ -378,27 +419,38 @@ def setup(engines: list[str]) -> None:
 
 
 def convert_command(argv: list[str]) -> None:
-    """cathy convert <input audio> <output audio>
+    """cathy convert <input audio> <output audio> [-s SPEED]
 
     Converts without re-narrating. If <input>.chapters.txt exists (written
     when narrating to .wav), its chapter marks are embedded in m4b/m4a output.
     """
-    if len(argv) != 2:
-        sys.exit("usage: cathy convert <input audio> <output audio>")
-    source, output = Path(argv[0]), Path(argv[1])
-    if not source.exists():
-        sys.exit(f"error: {source} not found")
+    parser = argparse.ArgumentParser(
+        prog="cathy convert",
+        description="Convert existing audio without re-narrating.",
+    )
+    parser.add_argument("source", type=Path, help="input audio file")
+    parser.add_argument("output", type=Path, help="output audio file")
+    parser.add_argument(
+        "-s",
+        "--speed",
+        type=float,
+        default=1.0,
+        help="re-time the audio (pitch-preserving); default: 1.0",
+    )
+    args = parser.parse_args(argv)
+    if not args.source.exists():
+        sys.exit(f"error: {args.source} not found")
 
     metadata = None
-    sidecar = source.with_suffix(".chapters.txt")
-    if output.suffix.lower() in CHAPTER_FORMATS:
+    sidecar = args.source.with_suffix(".chapters.txt")
+    if args.output.suffix.lower() in CHAPTER_FORMATS:
         if sidecar.exists():
             metadata = sidecar.read_text(encoding="utf-8")
             print(f"Using chapters from {sidecar}")
         else:
-            print(f"note: {sidecar} not found; {output.name} will have no chapters")
-    convert(source, output, metadata, probe_duration(source))
-    print(f"Wrote {output}")
+            print(f"note: {sidecar} not found; {args.output.name} will have no chapters")
+    convert(args.source, args.output, metadata, probe_duration(args.source), args.speed)
+    print(f"Wrote {args.output}")
 
 
 def main(argv: list[str] | None = None) -> None:
@@ -432,29 +484,35 @@ def main(argv: list[str] | None = None) -> None:
     if not chapters:
         sys.exit("error: input file contains no text")
 
-    if args.speed != 1.0 and args.engine != "kokoro":
-        print("note: --speed only applies to the kokoro engine; ignoring")
+    # Kokoro re-times speech natively (best quality); the other engines have
+    # no speed input, so their audio is re-timed afterwards with ffmpeg.
+    native_speed = args.engine == "kokoro"
+    post_speed = 1.0 if native_speed else args.speed
 
     paragraph_count = sum(len(p) for _, p in chapters)
     print(
         f"Engine: {args.engine} | Device: {device} | Voice: {args.voice or 'male'} | "
         f"Chapters: {len(chapters)} | Paragraphs: {paragraph_count}"
     )
-    engine = build_engine(args.engine, args.voice, args.speed, device)
+    engine = build_engine(
+        args.engine, args.voice, args.speed if native_speed else 1.0, device
+    )
 
-    if output.suffix.lower() == ".wav":
+    if output.suffix.lower() == ".wav" and post_speed == 1.0:
         marks = narrate(engine, chapters, output)
-        # Sidecar lets `cathy convert book.wav book.m4b` keep the chapters.
-        sidecar = output.with_suffix(".chapters.txt")
-        sidecar.write_text(ffmetadata(marks), encoding="utf-8")
+        metadata = ffmetadata(marks)
     else:
         wav_path = Path(tempfile.mkstemp(suffix=".wav")[1])
         try:
             marks = narrate(engine, chapters, wav_path)
             duration = marks[-1][2] if marks else 0.0
-            convert(wav_path, output, ffmetadata(marks), duration)
+            convert(wav_path, output, ffmetadata(marks), duration, post_speed)
         finally:
             wav_path.unlink(missing_ok=True)
+        metadata = scale_metadata(ffmetadata(marks), post_speed)
+    if output.suffix.lower() == ".wav":
+        # Sidecar lets `cathy convert book.wav book.m4b` keep the chapters.
+        output.with_suffix(".chapters.txt").write_text(metadata, encoding="utf-8")
     print(f"Wrote {output}")
 
 
