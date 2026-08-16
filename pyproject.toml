@@ -3,9 +3,12 @@ name = "cathy"
 version = "0.2.0"
 description = "Fully local text-to-speech narration (Kokoro-82M, GPU-accelerated)"
 readme = "README.md"
+license = "MIT"
+license-files = ["LICENSE"]
 authors = [
     { name = "Daniel Luca", email = "lucadanielcostin@gmail.com" }
 ]
+keywords = ["tts", "audiobook", "text-to-speech", "kokoro", "narration"]
 # <3.14: torch wheels below 2.9 (see the torch cap) don't exist for 3.14
 requires-python = ">=3.12,<3.14"
 dependencies = [
@@ -39,6 +42,10 @@ fish = [
     "fish-speech @ git+https://github.com/fishaudio/fish-speech@ec8bf2b343a5d601d77fe2ae5008bdc6b53034f5",
     "torchaudio>=2.6.0,<2.9",
 ]
+
+[project.urls]
+Repository = "https://github.com/cleanunicorn/cathy"
+Issues = "https://github.com/cleanunicorn/cathy/issues"
 
 [project.scripts]
 cathy = "cathy:main"

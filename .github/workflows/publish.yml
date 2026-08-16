@@ -1,0 +1,20 @@
+name: Publish
+
+# Publishes to PyPI on version tags (v0.3.0, ...). Uses PyPI trusted
+# publishing — configure this repo/workflow as a trusted publisher for the
+# "cathy" project on pypi.org before the first release.
+on:
+  push:
+    tags: ["v*"]
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    environment: pypi
+    permissions:
+      id-token: write
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v5
+      - run: uv build
+      - run: uv publish
