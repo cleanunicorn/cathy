@@ -13,22 +13,52 @@ a whole book in minutes.
 - `ffmpeg` (only for non-wav output formats)
 - NVIDIA GPU recommended (~2–3 GB VRAM for Kokoro); falls back to CPU
 
-## Install
+## Install and run
+
+There are two ways to get cathy; pick one.
+
+### Option 1: global install from GitHub
 
 ```sh
 uv tool install git+https://github.com/cleanunicorn/cathy
 ```
 
-That puts `cathy` on your PATH, runnable from anywhere. To use a non-default
-engine, install with its extra instead (one engine per install — their
-dependency pins conflict):
+That puts a `cathy` command on your PATH, runnable from any directory:
+
+```sh
+cathy book.mobi -o book.m4b
+```
+
+To use a non-default engine, install with its extra instead (one engine per
+install — their dependency pins conflict):
 
 ```sh
 uv tool install --reinstall "cathy[qwen] @ git+https://github.com/cleanunicorn/cathy"
+cathy book.txt -e qwen
 ```
 
-Upgrade later with `uv tool upgrade cathy`; developing from a clone of this
-repo, use `uv run cathy ...` as shown below without installing.
+Upgrade later with `uv tool upgrade cathy`; remove with `uv tool uninstall cathy`.
+
+### Option 2: from a git clone
+
+No install step — `uv run` creates the environment on first use:
+
+```sh
+git clone https://github.com/cleanunicorn/cathy
+cd cathy
+uv run cathy book.mobi -o book.m4b
+```
+
+From a clone, non-default engines are selected per run with `--extra`, no
+reinstall needed:
+
+```sh
+uv run --extra qwen cathy book.txt -e qwen
+```
+
+Note the difference: an installed tool is invoked as `cathy ...` from
+anywhere, a clone as `uv run cathy ...` from inside the repo. All flags below
+work identically in both.
 
 ## Usage
 
@@ -59,9 +89,8 @@ remember your position. Other formats (mp3, wav) get one continuous stream.
 ## Engines
 
 Each non-default engine lives in its own dependency environment (their pinned
-torch/transformers versions conflict). From a clone of this repo, select one
-with `uv run --extra <name>`; for a global install, reinstall the tool with
-the matching extra (see Install above):
+torch/transformers versions conflict). Select one with `--extra` from a clone,
+or reinstall the tool with the matching extra (see Install and run above):
 
 ```sh
 uv run cathy book.mobi -o book.m4b                              # kokoro (default)
