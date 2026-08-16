@@ -15,6 +15,7 @@ an 82M-parameter model that ranks near the top of the TTS Arena leaderboard.
 
 ```sh
 uv run cathy book.txt                    # writes book.wav
+uv run cathy book.mobi -o book.m4b       # audiobook with chapter markers
 uv run cathy book.txt -o book.mp3        # any format ffmpeg understands
 uv run cathy book.txt -v bm_fable        # pick a narrator voice
 uv run cathy book.txt -s 1.2             # 20% faster speech
@@ -29,6 +30,11 @@ Input can be plain text (`.txt`, `.md`, …) or an ebook (`.mobi`, `.azw`,
 in reading order. Paragraphs (blank-line separated) are
 narrated with a short pause between them, and audio is streamed to disk as it
 is generated, so book-length inputs won't exhaust memory.
+
+Chapters are detected from the epub spine (ebooks), h1/h2 headings (HTML), or
+markdown `#`/`##` headings (plain text). Writing to `.m4b` or `.m4a` embeds
+them as real chapter markers, so audiobook players show a chapter list and
+remember your position. Other formats (mp3, wav) get one continuous stream.
 
 ## Performance
 
