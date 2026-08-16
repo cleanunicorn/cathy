@@ -221,8 +221,20 @@ def narrate(
     chapters: list[Chapter], voice: str, speed: float, device: str | None, wav_path: Path
 ) -> list[tuple[str, float, float]]:
     """Synthesize all chapters into wav_path; return (title, start_s, end_s) marks."""
+    import warnings
+
+    # Keep the console clean: torch warns about internals of Kokoro's model
+    # (LSTM dropout, deprecated weight_norm) that we can do nothing about.
+    warnings.filterwarnings("ignore", category=FutureWarning, module="torch")
+    warnings.filterwarnings("ignore", category=UserWarning, module="torch")
+
     import numpy as np
     import soundfile as sf
+    from loguru import logger
+
+    logger.disable("kokoro")
+    logger.disable("misaki")
+
     from kokoro import KPipeline
     from tqdm import tqdm
 
