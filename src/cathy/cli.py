@@ -26,18 +26,52 @@ PARAGRAPH_PAUSE = 0.55
 HEADING_PAUSE = 1.0
 EDGE_KEEP_SECONDS = 0.05  # padding kept when trimming silence off segment edges
 CHAPTER_FORMATS = (".m4b", ".m4a")  # containers that get chapter markers
+EBOOK_FORMATS = (".mobi", ".azw", ".azw3", ".epub")
 
 # A chapter is (title, paragraphs). Titles become m4b chapter markers.
 Chapter = tuple[str, list[str]]
 
 
+EPILOG = """\
+subcommands:
+  convert IN OUT [-s SPEED]   convert existing audio without re-narrating
+                              (keeps chapter markers via IN.chapters.txt)
+  setup [ENGINE ...]          pre-download engine environments (qwen,
+                              chatterbox, fish); also refreshes them after
+                              an upgrade
+  voices                      list all voices (same as --list-voices)
+  help [SUBCOMMAND]           show this help, or a subcommand's
+
+examples:
+  cathy book.mobi -o book.m4b            audiobook with chapter markers
+  cathy notes.txt -v female -s 1.2       pick a voice, 20% faster
+  cathy book.epub -e fish -v sample.wav  clone the voice in sample.wav
+  cathy convert book.wav book.m4b        re-container without re-narrating
+"""
+
+
+def cathy_version() -> str:
+    from importlib.metadata import PackageNotFoundError, version
+
+    try:
+        return version("cathy")
+    except PackageNotFoundError:
+        return "unknown"
+
+
 def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     parser = argparse.ArgumentParser(
         prog="cathy",
-        description="Turn a text file into speech, fully locally (GPU-accelerated).",
+        description="Turn a text file or ebook into narrated audio, fully "
+        "locally (GPU-accelerated).",
+        epilog=EPILOG,
+        formatter_class=argparse.RawDescriptionHelpFormatter,
     )
     parser.add_argument(
         "input", nargs="?", type=Path, help="input .txt/.md/.mobi/.azw3/.epub file"
+    )
+    parser.add_argument(
+        "-V", "--version", action="version", version=f"cathy {cathy_version()}"
     )
     parser.add_argument(
         "-o",
@@ -79,7 +113,10 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     )
     args = parser.parse_args(argv)
     if not args.list_voices and args.input is None:
-        parser.error("input file is required (or use --list-voices)")
+        parser.error(
+            "input file is required — e.g. `cathy book.mobi -o book.m4b`; "
+            "see `cathy help` for options and subcommands"
+        )
     return args
 
 
@@ -411,12 +448,28 @@ def delegate_cmd(engine: str) -> list[str]:
     return ["uv", "run", "--project", source, "--extra", engine]
 
 
-def setup(engines: list[str]) -> None:
+def setup(argv: list[str]) -> None:
     """Pre-download engine environments so first narration doesn't wait."""
-    engines = engines or [e for e in ENGINES if e != "kokoro"]
+    optional = [e for e in ENGINES if e != "kokoro"]
+    parser = argparse.ArgumentParser(
+        prog="cathy setup",
+        description="Pre-download engine environments so the first narration "
+        "doesn't wait; also refreshes them after `uv tool upgrade cathy`. "
+        "With no arguments, sets up all optional engines.",
+    )
+    parser.add_argument(
+        "engines",
+        nargs="*",
+        metavar="ENGINE",
+        help=f"engines to set up: {', '.join(optional)} (default: all)",
+    )
+    engines = parser.parse_args(argv).engines or optional
     for engine in engines:
-        if engine not in ENGINES or engine == "kokoro":
-            sys.exit(f"error: unknown engine {engine!r}; options: qwen, chatterbox, fish")
+        if engine not in optional:
+            parser.error(
+                f"unknown engine {engine!r} (choose from {', '.join(optional)})"
+            )
+    for engine in engines:
         print(f"Setting up {engine}...")
         cmd = delegate_cmd(engine)
         if cmd[:3] == ["uv", "tool", "run"]:
@@ -440,10 +493,17 @@ def convert_command(argv: list[str]) -> None:
     """
     parser = argparse.ArgumentParser(
         prog="cathy convert",
-        description="Convert existing audio without re-narrating.",
+        description="Convert existing audio to another format without "
+        "re-narrating. If IN.chapters.txt exists (cathy writes it when "
+        "narrating to .wav), chapter markers are embedded in .m4b/.m4a output.",
     )
-    parser.add_argument("source", type=Path, help="input audio file")
-    parser.add_argument("output", type=Path, help="output audio file")
+    parser.add_argument("source", metavar="IN", type=Path, help="input audio file")
+    parser.add_argument(
+        "output",
+        metavar="OUT",
+        type=Path,
+        help="output audio file (.m4b/.m4a get chapters; any ffmpeg format works)",
+    )
     parser.add_argument(
         "-s",
         "--speed",
@@ -467,13 +527,28 @@ def convert_command(argv: list[str]) -> None:
     print(f"Wrote {args.output}")
 
 
+def help_command(argv: list[str]) -> None:
+    topic = argv[0] if argv else None
+    if topic == "convert":
+        convert_command(["--help"])
+    elif topic == "setup":
+        setup(["--help"])
+    elif topic in ("voices", "--list-voices"):
+        list_voices()
+    else:
+        parse_args(["--help"])
+
+
 def main(argv: list[str] | None = None) -> None:
     argv = sys.argv[1:] if argv is None else argv
-    if argv[:1] == ["setup"]:
-        setup(argv[1:])
-        return
-    if argv[:1] == ["convert"]:
-        convert_command(argv[1:])
+    subcommands = {
+        "setup": setup,
+        "convert": convert_command,
+        "help": help_command,
+        "voices": lambda _: list_voices(),
+    }
+    if argv and argv[0] in subcommands:
+        subcommands[argv[0]](argv[1:])
         return
 
     args = parse_args(argv)
@@ -494,6 +569,11 @@ def main(argv: list[str] | None = None) -> None:
 
     device = "cpu" if args.cpu else ("cuda" if torch.cuda.is_available() else "cpu")
     output = args.output or args.input.with_suffix(".wav")
+    if args.output is None and args.input.suffix.lower() in EBOOK_FORMATS:
+        print(
+            f"tip: writing plain {output.name}; use `-o {output.stem}.m4b` "
+            "for an audiobook with chapter markers"
+        )
     chapters = load_chapters(args.input)
     if not chapters:
         sys.exit("error: input file contains no text")
