@@ -11,6 +11,7 @@ a whole book in minutes.
 - [uv](https://docs.astral.sh/uv/)
 - `espeak-ng` (phonemizer backend): `sudo apt install espeak-ng`
 - `ffmpeg` (only for non-wav output formats)
+- `sox` (only for the qwen engine): `sudo apt install sox`
 - NVIDIA GPU recommended (~2–3 GB VRAM for Kokoro); falls back to CPU
 
 ## Install and run

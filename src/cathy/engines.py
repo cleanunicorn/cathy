@@ -156,6 +156,13 @@ class QwenEngine:
 
     def __init__(self, voice: str, speed: float, device: str):
         _quiet()
+        import shutil
+
+        if shutil.which("sox") is None:
+            sys.exit(
+                "error: the qwen engine needs the sox system package "
+                "(e.g. sudo apt install sox)"
+            )
         try:
             from qwen_tts import Qwen3TTSModel
         except ImportError:
