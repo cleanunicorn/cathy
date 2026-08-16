@@ -17,7 +17,7 @@ an 82M-parameter model that ranks near the top of the TTS Arena leaderboard.
 uv run cathy book.txt                    # writes book.wav
 uv run cathy book.mobi -o book.m4b       # audiobook with chapter markers
 uv run cathy book.txt -o book.mp3        # any format ffmpeg understands
-uv run cathy book.txt -v bm_fable        # pick a narrator voice
+uv run cathy book.txt -v female          # or male (default), british-male, ...
 uv run cathy book.txt -v af_heart:2,af_bella:1   # blend voices (weighted)
 uv run cathy book.txt -s 1.2             # 20% faster speech
 uv run cathy --list-voices

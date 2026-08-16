@@ -19,6 +19,14 @@ VOICES = {
     "bm_fable": "British male, narrator",
 }
 
+# Descriptive names for people who don't want to browse Kokoro presets.
+VOICE_ALIASES = {
+    "male": "am_michael:2,am_fenrir:1",
+    "female": "af_heart",
+    "british-male": "bm_george:2,bm_fable:1",
+    "british-female": "bf_emma",
+}
+
 SAMPLE_RATE = 24_000
 # Graded pauses, audiobook-style: short between sentences (Kokoro chunk
 # boundaries fall on sentence ends), longer between paragraphs, longest after
@@ -51,9 +59,10 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     parser.add_argument(
         "-v",
         "--voice",
-        default="af_heart",
-        help="voice name, or a blend like 'af_heart:2,af_bella:1' "
-        "(see --list-voices); default: af_heart",
+        default="male",
+        help="a descriptive voice (male, female, british-male, british-female), "
+        "a Kokoro voice name, or a blend like 'af_heart:2,af_bella:1' "
+        "(see --list-voices); default: male",
     )
     parser.add_argument(
         "-s", "--speed", type=float, default=1.0, help="speech speed; default: 1.0"
@@ -329,8 +338,12 @@ def main(argv: list[str] | None = None) -> None:
     args = parse_args(argv)
 
     if args.list_voices:
+        print("Voice options (-v), default: male")
+        for name, target in VOICE_ALIASES.items():
+            print(f"  {name:16} = {target}")
+        print("\nKokoro presets (also mixable, e.g. -v af_heart:2,af_bella:1):")
         for name, description in VOICES.items():
-            print(f"  {name:12} {description}")
+            print(f"  {name:16} {description}")
         return
 
     if not args.input.exists():
@@ -339,6 +352,7 @@ def main(argv: list[str] | None = None) -> None:
     import torch
 
     device = "cpu" if args.cpu else ("cuda" if torch.cuda.is_available() else "cpu")
+    args.voice = VOICE_ALIASES.get(args.voice, args.voice)
     output = args.output or args.input.with_suffix(".wav")
     chapters = load_chapters(args.input)
     if not chapters:
