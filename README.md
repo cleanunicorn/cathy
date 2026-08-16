@@ -135,6 +135,11 @@ cathy book.txt -e fish -v female
 | `chatterbox` | Chatterbox-Nano (110M) | ~10× real time | clones a reference .wav | MIT |
 | `fish` | OpenAudio S1-mini (0.5B) | ~real time | clones a reference .wav | CC-BY-NC-SA (non-commercial) |
 
+The fish model (`fishaudio/s1-mini`) is gated on Hugging Face: accept its
+terms on the model page, then set `HF_TOKEN` to a
+[token from your free account](https://huggingface.co/settings/tokens)
+before first use.
+
 `-v male` / `-v female` works on every engine. For the cloning engines
 (chatterbox, fish) those generate a reference clip with Kokoro; pass a path to
 a ~10 s `.wav` of any speaker to clone that voice instead.

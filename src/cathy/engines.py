@@ -293,7 +293,20 @@ class FishEngine(ClonedVoiceMixin):
             audio=clip.read_bytes(), text=REFERENCE_TEXT
         )
 
-        checkpoints = Path(snapshot_download("fishaudio/s1-mini"))
+        from huggingface_hub.errors import GatedRepoError
+
+        try:
+            checkpoints = Path(snapshot_download("fishaudio/s1-mini"))
+        except GatedRepoError:
+            sys.exit(
+                "error: fishaudio/s1-mini is a gated model; downloading it "
+                "needs a (free) authenticated Hugging Face account:\n"
+                "  1. accept the terms at https://huggingface.co/fishaudio/s1-mini\n"
+                "  2. create a token at https://huggingface.co/settings/tokens\n"
+                "  3. set the HF_TOKEN environment variable to it (or run: "
+                "hf auth login)\n"
+                "then retry."
+            )
         precision = torch.bfloat16
         llama_queue = launch_thread_safe_queue(
             checkpoint_path=checkpoints, device=device, precision=precision, compile=False
