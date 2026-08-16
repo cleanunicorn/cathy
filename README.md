@@ -79,7 +79,12 @@ cathy book.txt -v female          # or male (default), british-male, ...
 cathy book.txt -v af_heart:2,af_bella:1   # blend voices (weighted)
 cathy book.txt -s 1.2             # 20% faster speech
 cathy --list-voices
+cathy convert book.wav book.m4b   # convert existing audio, no re-narration
 ```
+
+Narrating to `.wav` also writes `book.chapters.txt` next to it, so a later
+`cathy convert book.wav book.m4b` still embeds the chapter markers. Convert
+works for any ffmpeg-supported output (mp3, flac, ...).
 
 The first run downloads the model (~330 MB) from Hugging Face; everything after
 that is offline.

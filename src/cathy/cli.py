@@ -278,19 +278,39 @@ def ffmetadata(marks: list[tuple[str, float, float]]) -> str:
     return "\n".join(lines) + "\n"
 
 
-def convert(wav_path: Path, output: Path, marks: list[tuple[str, float, float]]) -> None:
-    """Convert the intermediate wav to the requested container via ffmpeg."""
+def probe_duration(path: Path) -> float:
+    result = subprocess.run(
+        ["ffprobe", "-v", "error", "-show_entries", "format=duration",
+         "-of", "csv=p=0", str(path)],
+        capture_output=True,
+        text=True,
+    )
+    try:
+        return float(result.stdout.strip())
+    except ValueError:
+        return 0.0
+
+
+def convert(
+    wav_path: Path, output: Path, metadata: str | None, duration: float
+) -> None:
+    """Convert audio to the requested container via ffmpeg.
+
+    metadata is ffmetadata text with chapter marks; it is embedded when the
+    output container supports chapters (.m4b/.m4a).
+    """
     from tqdm import tqdm
 
     cmd = ["ffmpeg", "-y", "-loglevel", "error", "-nostats", "-progress", "pipe:1"]
     cmd += ["-i", str(wav_path)]
-    duration = marks[-1][2] if marks else 0.0
     with tempfile.NamedTemporaryFile("w", suffix=".txt", delete_on_close=False) as meta:
         if output.suffix.lower() in CHAPTER_FORMATS:
-            meta.write(ffmetadata(marks))
-            meta.close()
-            cmd += ["-f", "ffmetadata", "-i", meta.name, "-map_metadata", "1"]
-            cmd += ["-map_chapters", "1", "-c:a", "aac", "-b:a", "96k", "-f", "ipod"]
+            if metadata:
+                meta.write(metadata)
+                meta.close()
+                cmd += ["-f", "ffmetadata", "-i", meta.name, "-map_metadata", "1"]
+                cmd += ["-map_chapters", "1"]
+            cmd += ["-c:a", "aac", "-b:a", "96k", "-f", "ipod"]
         cmd.append(str(output))
         proc = subprocess.Popen(cmd, stdout=subprocess.PIPE, text=True)
         with tqdm(
@@ -357,10 +377,37 @@ def setup(engines: list[str]) -> None:
         print(f"Engine {engine} ready.")
 
 
+def convert_command(argv: list[str]) -> None:
+    """cathy convert <input audio> <output audio>
+
+    Converts without re-narrating. If <input>.chapters.txt exists (written
+    when narrating to .wav), its chapter marks are embedded in m4b/m4a output.
+    """
+    if len(argv) != 2:
+        sys.exit("usage: cathy convert <input audio> <output audio>")
+    source, output = Path(argv[0]), Path(argv[1])
+    if not source.exists():
+        sys.exit(f"error: {source} not found")
+
+    metadata = None
+    sidecar = source.with_suffix(".chapters.txt")
+    if output.suffix.lower() in CHAPTER_FORMATS:
+        if sidecar.exists():
+            metadata = sidecar.read_text(encoding="utf-8")
+            print(f"Using chapters from {sidecar}")
+        else:
+            print(f"note: {sidecar} not found; {output.name} will have no chapters")
+    convert(source, output, metadata, probe_duration(source))
+    print(f"Wrote {output}")
+
+
 def main(argv: list[str] | None = None) -> None:
     argv = sys.argv[1:] if argv is None else argv
     if argv[:1] == ["setup"]:
         setup(argv[1:])
+        return
+    if argv[:1] == ["convert"]:
+        convert_command(argv[1:])
         return
 
     args = parse_args(argv)
@@ -396,12 +443,16 @@ def main(argv: list[str] | None = None) -> None:
     engine = build_engine(args.engine, args.voice, args.speed, device)
 
     if output.suffix.lower() == ".wav":
-        narrate(engine, chapters, output)
+        marks = narrate(engine, chapters, output)
+        # Sidecar lets `cathy convert book.wav book.m4b` keep the chapters.
+        sidecar = output.with_suffix(".chapters.txt")
+        sidecar.write_text(ffmetadata(marks), encoding="utf-8")
     else:
         wav_path = Path(tempfile.mkstemp(suffix=".wav")[1])
         try:
             marks = narrate(engine, chapters, wav_path)
-            convert(wav_path, output, marks)
+            duration = marks[-1][2] if marks else 0.0
+            convert(wav_path, output, ffmetadata(marks), duration)
         finally:
             wav_path.unlink(missing_ok=True)
     print(f"Wrote {output}")
