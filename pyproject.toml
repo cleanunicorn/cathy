@@ -43,6 +43,17 @@ fish = [
 [project.scripts]
 cathy = "cathy:main"
 
+# On Windows, PyPI torch wheels are CPU-only; CUDA builds come from the
+# pytorch.org index (on Linux the PyPI wheels already bundle CUDA 12.8)
+[[tool.uv.index]]
+name = "pytorch-cu128"
+url = "https://download.pytorch.org/whl/cu128"
+explicit = true
+
+[tool.uv.sources]
+torch = [{ index = "pytorch-cu128", marker = "sys_platform == 'win32'" }]
+torchaudio = [{ index = "pytorch-cu128", marker = "sys_platform == 'win32'" }]
+
 [tool.uv]
 # Rebuild when source changes, not only pyproject.toml — otherwise delegated
 # engine environments built from a local CATHY_SOURCE serve stale code

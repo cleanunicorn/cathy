@@ -45,6 +45,21 @@ cathy setup fish         # just one
 
 Upgrade later with `uv tool upgrade cathy`; remove with `uv tool uninstall cathy`.
 
+### Windows and GPU
+
+On Windows, torch from PyPI is **CPU-only** — installing the normal way
+narrates on CPU. Point uv at the CUDA wheel index when installing:
+
+```sh
+uv tool install --python 3.12 --index https://download.pytorch.org/whl/cu128 --index-strategy unsafe-best-match git+https://github.com/cleanunicorn/cathy
+```
+
+A git clone (Option 2) needs no extra flags on Windows — the repo already
+selects the CUDA index for Windows. Linux installs are unaffected either way;
+PyPI's Linux wheels bundle CUDA. You'll also need Windows builds of
+`espeak-ng` ([release installer](https://github.com/espeak-ng/espeak-ng/releases))
+and `ffmpeg` (`winget install ffmpeg`).
+
 ### Option 2: from a git clone
 
 No install step — `uv run` creates the environment on first use:

@@ -441,7 +441,13 @@ def delegate_cmd(engine: str) -> list[str]:
     source = os.environ.get("CATHY_SOURCE", CATHY_SOURCE)
     if source.startswith("git+"):
         # python 3.12: the engines' pinned dependency sets are validated there
-        return ["uv", "tool", "run", "--python", "3.12", "--from", engine_spec(engine)]
+        cmd = ["uv", "tool", "run", "--python", "3.12"]
+        if sys.platform == "win32":
+            # PyPI torch is CPU-only on Windows; CUDA wheels live on the
+            # pytorch.org index
+            cmd += ["--index", "https://download.pytorch.org/whl/cu128"]
+            cmd += ["--index-strategy", "unsafe-best-match"]
+        return cmd + ["--from", engine_spec(engine)]
     # A local CATHY_SOURCE is a development tree: run it as a project so the
     # environment always tracks the current source (uv's URL-spec caching
     # would serve stale builds)
@@ -568,6 +574,12 @@ def main(argv: list[str] | None = None) -> None:
     from cathy.engines import build_engine
 
     device = "cpu" if args.cpu else ("cuda" if torch.cuda.is_available() else "cpu")
+    if device == "cpu" and not args.cpu:
+        print(
+            "note: no CUDA GPU detected, narrating on CPU (much slower). "
+            "If this machine has an NVIDIA GPU, see the README's GPU section — "
+            "on Windows, torch from PyPI is CPU-only."
+        )
     output = args.output or args.input.with_suffix(".wav")
     if args.output is None and args.input.suffix.lower() in EBOOK_FORMATS:
         print(

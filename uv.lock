@@ -20,7 +20,8 @@ resolution-markers = [
     "python_full_version < '3.13' and sys_platform == 'win32' and extra == 'extra-5-cathy-chatterbox' and extra != 'extra-5-cathy-fish' and extra != 'extra-5-cathy-qwen'",
     "python_full_version < '3.13' and sys_platform == 'emscripten' and extra == 'extra-5-cathy-chatterbox' and extra != 'extra-5-cathy-fish' and extra != 'extra-5-cathy-qwen'",
     "python_full_version < '3.13' and sys_platform != 'emscripten' and sys_platform != 'win32' and extra == 'extra-5-cathy-chatterbox' and extra != 'extra-5-cathy-fish' and extra != 'extra-5-cathy-qwen'",
-    "extra != 'extra-5-cathy-chatterbox' and extra != 'extra-5-cathy-fish' and extra != 'extra-5-cathy-qwen'",
+    "sys_platform == 'win32' and extra != 'extra-5-cathy-chatterbox' and extra != 'extra-5-cathy-fish' and extra != 'extra-5-cathy-qwen'",
+    "sys_platform != 'win32' and extra != 'extra-5-cathy-chatterbox' and extra != 'extra-5-cathy-fish' and extra != 'extra-5-cathy-qwen'",
 ]
 conflicts = [[
     { package = "cathy", extra = "chatterbox" },
@@ -32,8 +33,10 @@ conflicts = [[
 overrides = [
     { name = "protobuf", specifier = ">=3.20.0,<6.0.0" },
     { name = "tensorboard", specifier = ">=2.14.1,<2.20" },
-    { name = "torch", specifier = "==2.8.0" },
-    { name = "torchaudio", specifier = "==2.8.0" },
+    { name = "torch", marker = "sys_platform != 'win32'", specifier = "==2.8.0" },
+    { name = "torch", marker = "sys_platform == 'win32'", specifier = "==2.8.0", index = "https://download.pytorch.org/whl/cu128" },
+    { name = "torchaudio", marker = "sys_platform != 'win32'", specifier = "==2.8.0" },
+    { name = "torchaudio", marker = "sys_platform == 'win32'", specifier = "==2.8.0", index = "https://download.pytorch.org/whl/cu128" },
 ]
 
 [[package]]
@@ -56,7 +59,8 @@ dependencies = [
     { name = "psutil" },
     { name = "pyyaml" },
     { name = "safetensors", version = "0.8.0", source = { registry = "https://pypi.org/simple" } },
-    { name = "torch" },
+    { name = "torch", version = "2.8.0", source = { registry = "https://pypi.org/simple" }, marker = "(sys_platform != 'win32' and extra == 'extra-5-cathy-qwen') or (extra == 'extra-5-cathy-chatterbox' and extra == 'extra-5-cathy-fish') or (extra == 'extra-5-cathy-chatterbox' and extra == 'extra-5-cathy-qwen') or (extra == 'extra-5-cathy-fish' and extra == 'extra-5-cathy-qwen')" },
+    { name = "torch", version = "2.8.0+cu128", source = { registry = "https://download.pytorch.org/whl/cu128" }, marker = "(sys_platform == 'win32' and extra == 'extra-5-cathy-qwen') or (extra == 'extra-5-cathy-fish' and extra == 'extra-5-cathy-qwen') or (extra == 'extra-5-cathy-chatterbox' and extra == 'extra-5-cathy-fish') or (extra == 'extra-5-cathy-chatterbox' and extra == 'extra-5-cathy-qwen')" },
 ]
 sdist = { url = "https://files.pythonhosted.org/packages/4a/8e/ac2a9566747a93f8be36ee08532eb0160558b07630a081a6056a9f89bf1d/accelerate-1.12.0.tar.gz", hash = "sha256:70988c352feb481887077d2ab845125024b2a137a5090d6d7a32b57d03a45df6", size = 398399, upload-time = "2025-11-21T11:27:46.973Z" }
 wheels = [
@@ -449,22 +453,26 @@ dependencies = [
     { name = "numpy", version = "1.26.4", source = { registry = "https://pypi.org/simple" }, marker = "(python_full_version < '3.13' and extra == 'extra-5-cathy-chatterbox') or extra == 'extra-5-cathy-fish' or (extra == 'extra-5-cathy-chatterbox' and extra == 'extra-5-cathy-qwen')" },
     { name = "numpy", version = "2.5.2", source = { registry = "https://pypi.org/simple" }, marker = "(python_full_version >= '3.13' and extra == 'extra-5-cathy-chatterbox') or (extra == 'extra-5-cathy-chatterbox' and extra == 'extra-5-cathy-fish') or (extra == 'extra-5-cathy-chatterbox' and extra == 'extra-5-cathy-qwen') or (extra == 'extra-5-cathy-fish' and extra == 'extra-5-cathy-qwen') or (extra != 'extra-5-cathy-chatterbox' and extra != 'extra-5-cathy-fish')" },
     { name = "soundfile" },
-    { name = "torch" },
+    { name = "torch", version = "2.8.0", source = { registry = "https://pypi.org/simple" }, marker = "sys_platform != 'win32' or (extra == 'extra-5-cathy-chatterbox' and extra == 'extra-5-cathy-fish') or (extra == 'extra-5-cathy-chatterbox' and extra == 'extra-5-cathy-qwen') or (extra == 'extra-5-cathy-fish' and extra == 'extra-5-cathy-qwen')" },
+    { name = "torch", version = "2.8.0+cu128", source = { registry = "https://download.pytorch.org/whl/cu128" }, marker = "sys_platform == 'win32' or (extra == 'extra-5-cathy-chatterbox' and extra == 'extra-5-cathy-fish') or (extra == 'extra-5-cathy-chatterbox' and extra == 'extra-5-cathy-qwen') or (extra == 'extra-5-cathy-fish' and extra == 'extra-5-cathy-qwen')" },
     { name = "tqdm" },
 ]
 
 [package.optional-dependencies]
 chatterbox = [
     { name = "chatterbox-tts" },
-    { name = "torchaudio" },
+    { name = "torchaudio", version = "2.8.0", source = { registry = "https://pypi.org/simple" }, marker = "(sys_platform != 'win32' and extra == 'extra-5-cathy-chatterbox') or (extra == 'extra-5-cathy-chatterbox' and extra == 'extra-5-cathy-fish') or (extra == 'extra-5-cathy-chatterbox' and extra == 'extra-5-cathy-qwen') or (extra == 'extra-5-cathy-fish' and extra == 'extra-5-cathy-qwen')" },
+    { name = "torchaudio", version = "2.8.0+cu128", source = { registry = "https://download.pytorch.org/whl/cu128" }, marker = "(sys_platform == 'win32' and extra == 'extra-5-cathy-chatterbox') or (extra == 'extra-5-cathy-chatterbox' and extra == 'extra-5-cathy-fish') or (extra == 'extra-5-cathy-chatterbox' and extra == 'extra-5-cathy-qwen') or (extra == 'extra-5-cathy-fish' and extra == 'extra-5-cathy-qwen')" },
 ]
 fish = [
     { name = "fish-speech" },
-    { name = "torchaudio" },
+    { name = "torchaudio", version = "2.8.0", source = { registry = "https://pypi.org/simple" }, marker = "(sys_platform != 'win32' and extra == 'extra-5-cathy-fish') or (extra == 'extra-5-cathy-chatterbox' and extra == 'extra-5-cathy-fish') or (extra == 'extra-5-cathy-chatterbox' and extra == 'extra-5-cathy-qwen') or (extra == 'extra-5-cathy-fish' and extra == 'extra-5-cathy-qwen')" },
+    { name = "torchaudio", version = "2.8.0+cu128", source = { registry = "https://download.pytorch.org/whl/cu128" }, marker = "(sys_platform == 'win32' and extra == 'extra-5-cathy-fish') or (extra == 'extra-5-cathy-fish' and extra == 'extra-5-cathy-qwen') or (extra == 'extra-5-cathy-chatterbox' and extra == 'extra-5-cathy-fish') or (extra == 'extra-5-cathy-chatterbox' and extra == 'extra-5-cathy-qwen')" },
 ]
 qwen = [
     { name = "qwen-tts" },
-    { name = "torchaudio" },
+    { name = "torchaudio", version = "2.8.0", source = { registry = "https://pypi.org/simple" }, marker = "(sys_platform != 'win32' and extra == 'extra-5-cathy-qwen') or (extra == 'extra-5-cathy-chatterbox' and extra == 'extra-5-cathy-fish') or (extra == 'extra-5-cathy-chatterbox' and extra == 'extra-5-cathy-qwen') or (extra == 'extra-5-cathy-fish' and extra == 'extra-5-cathy-qwen')" },
+    { name = "torchaudio", version = "2.8.0+cu128", source = { registry = "https://download.pytorch.org/whl/cu128" }, marker = "(sys_platform == 'win32' and extra == 'extra-5-cathy-qwen') or (extra == 'extra-5-cathy-fish' and extra == 'extra-5-cathy-qwen') or (extra == 'extra-5-cathy-chatterbox' and extra == 'extra-5-cathy-fish') or (extra == 'extra-5-cathy-chatterbox' and extra == 'extra-5-cathy-qwen')" },
 ]
 
 [package.metadata]
@@ -479,10 +487,14 @@ requires-dist = [
     { name = "numpy", specifier = ">=1.26" },
     { name = "qwen-tts", marker = "extra == 'qwen'", specifier = ">=0.1.1" },
     { name = "soundfile", specifier = ">=0.14.0" },
-    { name = "torch", specifier = ">=2.6.0,<2.9" },
-    { name = "torchaudio", marker = "extra == 'chatterbox'", specifier = ">=2.6.0,<2.9" },
-    { name = "torchaudio", marker = "extra == 'fish'", specifier = ">=2.6.0,<2.9" },
-    { name = "torchaudio", marker = "extra == 'qwen'", specifier = ">=2.6.0,<2.9" },
+    { name = "torch", marker = "sys_platform != 'win32'", specifier = ">=2.6.0,<2.9" },
+    { name = "torch", marker = "sys_platform == 'win32'", specifier = ">=2.6.0,<2.9", index = "https://download.pytorch.org/whl/cu128" },
+    { name = "torchaudio", marker = "sys_platform == 'win32' and extra == 'chatterbox'", specifier = ">=2.6.0,<2.9", index = "https://download.pytorch.org/whl/cu128" },
+    { name = "torchaudio", marker = "sys_platform == 'win32' and extra == 'fish'", specifier = ">=2.6.0,<2.9", index = "https://download.pytorch.org/whl/cu128" },
+    { name = "torchaudio", marker = "sys_platform == 'win32' and extra == 'qwen'", specifier = ">=2.6.0,<2.9", index = "https://download.pytorch.org/whl/cu128" },
+    { name = "torchaudio", marker = "sys_platform != 'win32' and extra == 'chatterbox'", specifier = ">=2.6.0,<2.9" },
+    { name = "torchaudio", marker = "sys_platform != 'win32' and extra == 'fish'", specifier = ">=2.6.0,<2.9" },
+    { name = "torchaudio", marker = "sys_platform != 'win32' and extra == 'qwen'", specifier = ">=2.6.0,<2.9" },
     { name = "tqdm", specifier = ">=4.70.0" },
 ]
 provides-extras = ["qwen", "chatterbox", "fish"]
@@ -622,8 +634,10 @@ dependencies = [
     { name = "s3tokenizer" },
     { name = "safetensors", version = "0.5.3", source = { registry = "https://pypi.org/simple" } },
     { name = "spacy-pkuseg" },
-    { name = "torch" },
-    { name = "torchaudio" },
+    { name = "torch", version = "2.8.0", source = { registry = "https://pypi.org/simple" }, marker = "(sys_platform != 'win32' and extra == 'extra-5-cathy-chatterbox') or (extra == 'extra-5-cathy-chatterbox' and extra == 'extra-5-cathy-fish') or (extra == 'extra-5-cathy-chatterbox' and extra == 'extra-5-cathy-qwen') or (extra == 'extra-5-cathy-fish' and extra == 'extra-5-cathy-qwen')" },
+    { name = "torch", version = "2.8.0+cu128", source = { registry = "https://download.pytorch.org/whl/cu128" }, marker = "(sys_platform == 'win32' and extra == 'extra-5-cathy-chatterbox') or (extra == 'extra-5-cathy-chatterbox' and extra == 'extra-5-cathy-fish') or (extra == 'extra-5-cathy-chatterbox' and extra == 'extra-5-cathy-qwen') or (extra == 'extra-5-cathy-fish' and extra == 'extra-5-cathy-qwen')" },
+    { name = "torchaudio", version = "2.8.0", source = { registry = "https://pypi.org/simple" }, marker = "(sys_platform != 'win32' and extra == 'extra-5-cathy-chatterbox') or (extra == 'extra-5-cathy-chatterbox' and extra == 'extra-5-cathy-fish') or (extra == 'extra-5-cathy-chatterbox' and extra == 'extra-5-cathy-qwen') or (extra == 'extra-5-cathy-fish' and extra == 'extra-5-cathy-qwen')" },
+    { name = "torchaudio", version = "2.8.0+cu128", source = { registry = "https://download.pytorch.org/whl/cu128" }, marker = "(sys_platform == 'win32' and extra == 'extra-5-cathy-chatterbox') or (extra == 'extra-5-cathy-chatterbox' and extra == 'extra-5-cathy-fish') or (extra == 'extra-5-cathy-chatterbox' and extra == 'extra-5-cathy-qwen') or (extra == 'extra-5-cathy-fish' and extra == 'extra-5-cathy-qwen')" },
     { name = "transformers", version = "5.2.0", source = { registry = "https://pypi.org/simple" } },
 ]
 
@@ -672,7 +686,8 @@ version = "0.3.2"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "einops" },
-    { name = "torch" },
+    { name = "torch", version = "2.8.0", source = { registry = "https://pypi.org/simple" }, marker = "(sys_platform != 'win32' and extra == 'extra-5-cathy-chatterbox') or (extra == 'extra-5-cathy-chatterbox' and extra == 'extra-5-cathy-fish') or (extra == 'extra-5-cathy-chatterbox' and extra == 'extra-5-cathy-qwen') or (extra == 'extra-5-cathy-fish' and extra == 'extra-5-cathy-qwen')" },
+    { name = "torch", version = "2.8.0+cu128", source = { registry = "https://download.pytorch.org/whl/cu128" }, marker = "(sys_platform == 'win32' and extra == 'extra-5-cathy-chatterbox') or (extra == 'extra-5-cathy-chatterbox' and extra == 'extra-5-cathy-fish') or (extra == 'extra-5-cathy-chatterbox' and extra == 'extra-5-cathy-qwen') or (extra == 'extra-5-cathy-fish' and extra == 'extra-5-cathy-qwen')" },
 ]
 sdist = { url = "https://files.pythonhosted.org/packages/c0/b2/2859d16fe377f1a5dbd3ba85c68fa0e6deb5605ce86faded85b047f8cbed/conformer-0.3.2.tar.gz", hash = "sha256:32ef34fa461ff32e1c33061025c0f583884f19d2f0aba200234f4e771f777eda", size = 4663, upload-time = "2023-05-17T21:08:48.415Z" }
 wheels = [
@@ -765,7 +780,8 @@ name = "curated-transformers"
 version = "0.1.1"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
-    { name = "torch" },
+    { name = "torch", version = "2.8.0", source = { registry = "https://pypi.org/simple" }, marker = "sys_platform != 'win32' or (extra == 'extra-5-cathy-chatterbox' and extra == 'extra-5-cathy-fish') or (extra == 'extra-5-cathy-chatterbox' and extra == 'extra-5-cathy-qwen') or (extra == 'extra-5-cathy-fish' and extra == 'extra-5-cathy-qwen')" },
+    { name = "torch", version = "2.8.0+cu128", source = { registry = "https://download.pytorch.org/whl/cu128" }, marker = "sys_platform == 'win32' or (extra == 'extra-5-cathy-chatterbox' and extra == 'extra-5-cathy-fish') or (extra == 'extra-5-cathy-chatterbox' and extra == 'extra-5-cathy-qwen') or (extra == 'extra-5-cathy-fish' and extra == 'extra-5-cathy-qwen')" },
 ]
 sdist = { url = "https://files.pythonhosted.org/packages/70/06/6c12c149a7f737dacc76b4c3949dbc7ff87d622567b86996896ae4d104aa/curated-transformers-0.1.1.tar.gz", hash = "sha256:4671f03314df30efda2ec2b59bc7692ea34fcea44cb65382342c16684e8a2119", size = 16313, upload-time = "2023-05-24T07:29:22.801Z" }
 wheels = [
@@ -869,8 +885,10 @@ dependencies = [
     { name = "descript-audiotools" },
     { name = "einops" },
     { name = "numpy", version = "1.26.4", source = { registry = "https://pypi.org/simple" } },
-    { name = "torch" },
-    { name = "torchaudio" },
+    { name = "torch", version = "2.8.0", source = { registry = "https://pypi.org/simple" }, marker = "(sys_platform != 'win32' and extra == 'extra-5-cathy-fish') or (extra == 'extra-5-cathy-chatterbox' and extra == 'extra-5-cathy-fish') or (extra == 'extra-5-cathy-chatterbox' and extra == 'extra-5-cathy-qwen') or (extra == 'extra-5-cathy-fish' and extra == 'extra-5-cathy-qwen')" },
+    { name = "torch", version = "2.8.0+cu128", source = { registry = "https://download.pytorch.org/whl/cu128" }, marker = "(sys_platform == 'win32' and extra == 'extra-5-cathy-fish') or (extra == 'extra-5-cathy-fish' and extra == 'extra-5-cathy-qwen') or (extra == 'extra-5-cathy-chatterbox' and extra == 'extra-5-cathy-fish') or (extra == 'extra-5-cathy-chatterbox' and extra == 'extra-5-cathy-qwen')" },
+    { name = "torchaudio", version = "2.8.0", source = { registry = "https://pypi.org/simple" }, marker = "(sys_platform != 'win32' and extra == 'extra-5-cathy-fish') or (extra == 'extra-5-cathy-chatterbox' and extra == 'extra-5-cathy-fish') or (extra == 'extra-5-cathy-chatterbox' and extra == 'extra-5-cathy-qwen') or (extra == 'extra-5-cathy-fish' and extra == 'extra-5-cathy-qwen')" },
+    { name = "torchaudio", version = "2.8.0+cu128", source = { registry = "https://download.pytorch.org/whl/cu128" }, marker = "(sys_platform == 'win32' and extra == 'extra-5-cathy-fish') or (extra == 'extra-5-cathy-fish' and extra == 'extra-5-cathy-qwen') or (extra == 'extra-5-cathy-chatterbox' and extra == 'extra-5-cathy-fish') or (extra == 'extra-5-cathy-chatterbox' and extra == 'extra-5-cathy-qwen')" },
     { name = "tqdm" },
 ]
 sdist = { url = "https://files.pythonhosted.org/packages/7b/89/022d30f42091b0228f24449d0083130d44a1f6d141ad67f2cc67e22679d2/descript-audio-codec-1.0.0.tar.gz", hash = "sha256:56a5a541128686821570756512d405534e9d7a978b34adf2510cfe981f0b00e0", size = 23711, upload-time = "2023-07-20T18:10:30.913Z" }
@@ -901,9 +919,11 @@ dependencies = [
     { name = "scipy", version = "1.17.1", source = { registry = "https://pypi.org/simple" } },
     { name = "soundfile" },
     { name = "tensorboard" },
-    { name = "torch" },
+    { name = "torch", version = "2.8.0", source = { registry = "https://pypi.org/simple" }, marker = "(sys_platform != 'win32' and extra == 'extra-5-cathy-fish') or (extra == 'extra-5-cathy-chatterbox' and extra == 'extra-5-cathy-fish') or (extra == 'extra-5-cathy-chatterbox' and extra == 'extra-5-cathy-qwen') or (extra == 'extra-5-cathy-fish' and extra == 'extra-5-cathy-qwen')" },
+    { name = "torch", version = "2.8.0+cu128", source = { registry = "https://download.pytorch.org/whl/cu128" }, marker = "(sys_platform == 'win32' and extra == 'extra-5-cathy-fish') or (extra == 'extra-5-cathy-fish' and extra == 'extra-5-cathy-qwen') or (extra == 'extra-5-cathy-chatterbox' and extra == 'extra-5-cathy-fish') or (extra == 'extra-5-cathy-chatterbox' and extra == 'extra-5-cathy-qwen')" },
     { name = "torch-stoi" },
-    { name = "torchaudio" },
+    { name = "torchaudio", version = "2.8.0", source = { registry = "https://pypi.org/simple" }, marker = "(sys_platform != 'win32' and extra == 'extra-5-cathy-fish') or (extra == 'extra-5-cathy-chatterbox' and extra == 'extra-5-cathy-fish') or (extra == 'extra-5-cathy-chatterbox' and extra == 'extra-5-cathy-qwen') or (extra == 'extra-5-cathy-fish' and extra == 'extra-5-cathy-qwen')" },
+    { name = "torchaudio", version = "2.8.0+cu128", source = { registry = "https://download.pytorch.org/whl/cu128" }, marker = "(sys_platform == 'win32' and extra == 'extra-5-cathy-fish') or (extra == 'extra-5-cathy-fish' and extra == 'extra-5-cathy-qwen') or (extra == 'extra-5-cathy-chatterbox' and extra == 'extra-5-cathy-fish') or (extra == 'extra-5-cathy-chatterbox' and extra == 'extra-5-cathy-qwen')" },
     { name = "tqdm" },
 ]
 sdist = { url = "https://files.pythonhosted.org/packages/8c/e7/8c4d16e8ff5785103877a7782a41585b23ea3a457681cca20fe1d79f0810/descript-audiotools-0.7.2.tar.gz", hash = "sha256:2cdd363025c771b8acc53d5ef9ec77e34f92e182272c4be7fd0118a99b6a5e2a", size = 99357, upload-time = "2023-07-19T17:41:05.139Z" }
@@ -1011,7 +1031,8 @@ wheels = [
 
 [package.optional-dependencies]
 torch = [
-    { name = "torch" },
+    { name = "torch", version = "2.8.0", source = { registry = "https://pypi.org/simple" }, marker = "(sys_platform != 'win32' and extra == 'extra-5-cathy-fish') or (extra == 'extra-5-cathy-chatterbox' and extra == 'extra-5-cathy-fish') or (extra == 'extra-5-cathy-chatterbox' and extra == 'extra-5-cathy-qwen') or (extra == 'extra-5-cathy-fish' and extra == 'extra-5-cathy-qwen')" },
+    { name = "torch", version = "2.8.0+cu128", source = { registry = "https://download.pytorch.org/whl/cu128" }, marker = "(sys_platform == 'win32' and extra == 'extra-5-cathy-fish') or (extra == 'extra-5-cathy-fish' and extra == 'extra-5-cathy-qwen') or (extra == 'extra-5-cathy-chatterbox' and extra == 'extra-5-cathy-fish') or (extra == 'extra-5-cathy-chatterbox' and extra == 'extra-5-cathy-qwen')" },
 ]
 
 [[package]]
@@ -1278,7 +1299,8 @@ resolution-markers = [
     "python_full_version < '3.13' and sys_platform == 'win32' and extra == 'extra-5-cathy-chatterbox' and extra != 'extra-5-cathy-fish' and extra != 'extra-5-cathy-qwen'",
     "python_full_version < '3.13' and sys_platform == 'emscripten' and extra == 'extra-5-cathy-chatterbox' and extra != 'extra-5-cathy-fish' and extra != 'extra-5-cathy-qwen'",
     "python_full_version < '3.13' and sys_platform != 'emscripten' and sys_platform != 'win32' and extra == 'extra-5-cathy-chatterbox' and extra != 'extra-5-cathy-fish' and extra != 'extra-5-cathy-qwen'",
-    "extra != 'extra-5-cathy-chatterbox' and extra != 'extra-5-cathy-fish' and extra != 'extra-5-cathy-qwen'",
+    "sys_platform == 'win32' and extra != 'extra-5-cathy-chatterbox' and extra != 'extra-5-cathy-fish' and extra != 'extra-5-cathy-qwen'",
+    "sys_platform != 'win32' and extra != 'extra-5-cathy-chatterbox' and extra != 'extra-5-cathy-fish' and extra != 'extra-5-cathy-qwen'",
 ]
 sdist = { url = "https://files.pythonhosted.org/packages/00/78/f34251dadb8f3921264a1d9b8946f5e542014ee2614b285261b4e40e6775/fsspec-2026.7.0.tar.gz", hash = "sha256:c803c40f4cf860b49dea58ee3e1c33cb9c790520e233537e1340049f89b82a88", size = 317040, upload-time = "2026-07-28T16:34:51.052Z" }
 wheels = [
@@ -1584,7 +1606,8 @@ resolution-markers = [
     "python_full_version < '3.13' and sys_platform == 'win32' and extra == 'extra-5-cathy-chatterbox' and extra != 'extra-5-cathy-fish' and extra != 'extra-5-cathy-qwen'",
     "python_full_version < '3.13' and sys_platform == 'emscripten' and extra == 'extra-5-cathy-chatterbox' and extra != 'extra-5-cathy-fish' and extra != 'extra-5-cathy-qwen'",
     "python_full_version < '3.13' and sys_platform != 'emscripten' and sys_platform != 'win32' and extra == 'extra-5-cathy-chatterbox' and extra != 'extra-5-cathy-fish' and extra != 'extra-5-cathy-qwen'",
-    "extra != 'extra-5-cathy-chatterbox' and extra != 'extra-5-cathy-fish' and extra != 'extra-5-cathy-qwen'",
+    "sys_platform == 'win32' and extra != 'extra-5-cathy-chatterbox' and extra != 'extra-5-cathy-fish' and extra != 'extra-5-cathy-qwen'",
+    "sys_platform != 'win32' and extra != 'extra-5-cathy-chatterbox' and extra != 'extra-5-cathy-fish' and extra != 'extra-5-cathy-qwen'",
 ]
 dependencies = [
     { name = "click", marker = "extra == 'extra-5-cathy-chatterbox' or extra == 'extra-5-cathy-fish' or extra != 'extra-5-cathy-qwen'" },
@@ -1772,7 +1795,8 @@ name = "julius"
 version = "0.2.8"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
-    { name = "torch" },
+    { name = "torch", version = "2.8.0", source = { registry = "https://pypi.org/simple" }, marker = "(sys_platform != 'win32' and extra == 'extra-5-cathy-fish') or (extra == 'extra-5-cathy-chatterbox' and extra == 'extra-5-cathy-fish') or (extra == 'extra-5-cathy-chatterbox' and extra == 'extra-5-cathy-qwen') or (extra == 'extra-5-cathy-fish' and extra == 'extra-5-cathy-qwen')" },
+    { name = "torch", version = "2.8.0+cu128", source = { registry = "https://download.pytorch.org/whl/cu128" }, marker = "(sys_platform == 'win32' and extra == 'extra-5-cathy-fish') or (extra == 'extra-5-cathy-fish' and extra == 'extra-5-cathy-qwen') or (extra == 'extra-5-cathy-chatterbox' and extra == 'extra-5-cathy-fish') or (extra == 'extra-5-cathy-chatterbox' and extra == 'extra-5-cathy-qwen')" },
 ]
 sdist = { url = "https://files.pythonhosted.org/packages/1d/c6/5c2aea2b11ead1680bb5b17c996def31f8ccade471cada37cdb93855e06f/julius-0.2.8.tar.gz", hash = "sha256:d691e651200930affea4f6c849c26e95fec846087281ae3d1a7757eac90253d5", size = 48081, upload-time = "2026-06-03T16:05:34.52Z" }
 wheels = [
@@ -1846,7 +1870,8 @@ dependencies = [
     { name = "misaki", extra = ["en"] },
     { name = "numpy", version = "1.26.4", source = { registry = "https://pypi.org/simple" }, marker = "(python_full_version < '3.13' and extra == 'extra-5-cathy-chatterbox') or extra == 'extra-5-cathy-fish' or (extra == 'extra-5-cathy-chatterbox' and extra == 'extra-5-cathy-qwen')" },
     { name = "numpy", version = "2.5.2", source = { registry = "https://pypi.org/simple" }, marker = "(python_full_version >= '3.13' and extra == 'extra-5-cathy-chatterbox') or (extra == 'extra-5-cathy-chatterbox' and extra == 'extra-5-cathy-fish') or (extra == 'extra-5-cathy-chatterbox' and extra == 'extra-5-cathy-qwen') or (extra == 'extra-5-cathy-fish' and extra == 'extra-5-cathy-qwen') or (extra != 'extra-5-cathy-chatterbox' and extra != 'extra-5-cathy-fish')" },
-    { name = "torch" },
+    { name = "torch", version = "2.8.0", source = { registry = "https://pypi.org/simple" }, marker = "sys_platform != 'win32' or (extra == 'extra-5-cathy-chatterbox' and extra == 'extra-5-cathy-fish') or (extra == 'extra-5-cathy-chatterbox' and extra == 'extra-5-cathy-qwen') or (extra == 'extra-5-cathy-fish' and extra == 'extra-5-cathy-qwen')" },
+    { name = "torch", version = "2.8.0+cu128", source = { registry = "https://download.pytorch.org/whl/cu128" }, marker = "sys_platform == 'win32' or (extra == 'extra-5-cathy-chatterbox' and extra == 'extra-5-cathy-fish') or (extra == 'extra-5-cathy-chatterbox' and extra == 'extra-5-cathy-qwen') or (extra == 'extra-5-cathy-fish' and extra == 'extra-5-cathy-qwen')" },
     { name = "transformers", version = "4.57.3", source = { registry = "https://pypi.org/simple" }, marker = "(extra == 'extra-5-cathy-chatterbox' and extra == 'extra-5-cathy-fish') or (extra != 'extra-5-cathy-fish' and extra == 'extra-5-cathy-qwen') or (extra != 'extra-5-cathy-chatterbox' and extra == 'extra-5-cathy-qwen')" },
     { name = "transformers", version = "5.2.0", source = { registry = "https://pypi.org/simple" }, marker = "extra == 'extra-5-cathy-chatterbox' or (extra == 'extra-5-cathy-fish' and extra == 'extra-5-cathy-qwen')" },
     { name = "transformers", version = "5.15.0", source = { registry = "https://pypi.org/simple" }, marker = "extra == 'extra-5-cathy-fish' or (extra == 'extra-5-cathy-chatterbox' and extra == 'extra-5-cathy-qwen') or (extra != 'extra-5-cathy-chatterbox' and extra != 'extra-5-cathy-qwen')" },
@@ -1967,7 +1992,8 @@ dependencies = [
     { name = "packaging" },
     { name = "pytorch-lightning" },
     { name = "pyyaml" },
-    { name = "torch" },
+    { name = "torch", version = "2.8.0", source = { registry = "https://pypi.org/simple" }, marker = "(sys_platform != 'win32' and extra == 'extra-5-cathy-fish') or (extra == 'extra-5-cathy-chatterbox' and extra == 'extra-5-cathy-fish') or (extra == 'extra-5-cathy-chatterbox' and extra == 'extra-5-cathy-qwen') or (extra == 'extra-5-cathy-fish' and extra == 'extra-5-cathy-qwen')" },
+    { name = "torch", version = "2.8.0+cu128", source = { registry = "https://download.pytorch.org/whl/cu128" }, marker = "(sys_platform == 'win32' and extra == 'extra-5-cathy-fish') or (extra == 'extra-5-cathy-fish' and extra == 'extra-5-cathy-qwen') or (extra == 'extra-5-cathy-chatterbox' and extra == 'extra-5-cathy-fish') or (extra == 'extra-5-cathy-chatterbox' and extra == 'extra-5-cathy-qwen')" },
     { name = "torchmetrics" },
     { name = "tqdm" },
     { name = "typing-extensions" },
@@ -2568,7 +2594,8 @@ resolution-markers = [
     "python_full_version >= '3.13' and sys_platform == 'win32' and extra == 'extra-5-cathy-chatterbox' and extra != 'extra-5-cathy-fish' and extra != 'extra-5-cathy-qwen'",
     "python_full_version >= '3.13' and sys_platform == 'emscripten' and extra == 'extra-5-cathy-chatterbox' and extra != 'extra-5-cathy-fish' and extra != 'extra-5-cathy-qwen'",
     "python_full_version >= '3.13' and sys_platform != 'emscripten' and sys_platform != 'win32' and extra == 'extra-5-cathy-chatterbox' and extra != 'extra-5-cathy-fish' and extra != 'extra-5-cathy-qwen'",
-    "extra != 'extra-5-cathy-chatterbox' and extra != 'extra-5-cathy-fish' and extra != 'extra-5-cathy-qwen'",
+    "sys_platform == 'win32' and extra != 'extra-5-cathy-chatterbox' and extra != 'extra-5-cathy-fish' and extra != 'extra-5-cathy-qwen'",
+    "sys_platform != 'win32' and extra != 'extra-5-cathy-chatterbox' and extra != 'extra-5-cathy-fish' and extra != 'extra-5-cathy-qwen'",
 ]
 sdist = { url = "https://files.pythonhosted.org/packages/9a/80/db0b4559e57ec36362bedbb05530a87fafbcb6067708c946967a41d449e7/numpy-2.5.2.tar.gz", hash = "sha256:d482d171c406ae88c5b19cad3b6a1c4c5209f886ab74bc44c2c865c23f52d860", size = 20773161, upload-time = "2026-08-09T13:48:27.962Z" }
 wheels = [
@@ -2641,7 +2668,7 @@ name = "nvidia-cudnn-cu12"
 version = "9.10.2.21"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
-    { name = "nvidia-cublas-cu12", marker = "(sys_platform != 'emscripten' and sys_platform != 'win32') or (sys_platform == 'emscripten' and extra == 'extra-5-cathy-chatterbox' and extra == 'extra-5-cathy-fish') or (sys_platform == 'emscripten' and extra == 'extra-5-cathy-chatterbox' and extra == 'extra-5-cathy-qwen') or (sys_platform == 'emscripten' and extra == 'extra-5-cathy-fish' and extra == 'extra-5-cathy-qwen') or (sys_platform == 'win32' and extra == 'extra-5-cathy-chatterbox' and extra == 'extra-5-cathy-fish') or (sys_platform == 'win32' and extra == 'extra-5-cathy-chatterbox' and extra == 'extra-5-cathy-qwen') or (sys_platform == 'win32' and extra == 'extra-5-cathy-fish' and extra == 'extra-5-cathy-qwen') or (sys_platform == 'emscripten' and extra != 'extra-5-cathy-chatterbox' and extra != 'extra-5-cathy-fish' and extra != 'extra-5-cathy-qwen') or (sys_platform == 'win32' and extra != 'extra-5-cathy-chatterbox' and extra != 'extra-5-cathy-fish' and extra != 'extra-5-cathy-qwen')" },
+    { name = "nvidia-cublas-cu12", marker = "(sys_platform != 'emscripten' and sys_platform != 'win32') or (sys_platform == 'emscripten' and extra == 'extra-5-cathy-chatterbox' and extra == 'extra-5-cathy-fish') or (sys_platform == 'emscripten' and extra == 'extra-5-cathy-chatterbox' and extra == 'extra-5-cathy-qwen') or (sys_platform == 'emscripten' and extra == 'extra-5-cathy-fish' and extra == 'extra-5-cathy-qwen') or (sys_platform == 'win32' and extra == 'extra-5-cathy-chatterbox' and extra == 'extra-5-cathy-fish') or (sys_platform == 'win32' and extra == 'extra-5-cathy-chatterbox' and extra == 'extra-5-cathy-qwen') or (sys_platform == 'win32' and extra == 'extra-5-cathy-fish' and extra == 'extra-5-cathy-qwen') or (sys_platform == 'emscripten' and extra != 'extra-5-cathy-chatterbox' and extra != 'extra-5-cathy-fish' and extra != 'extra-5-cathy-qwen')" },
 ]
 wheels = [
     { url = "https://files.pythonhosted.org/packages/fa/41/e79269ce215c857c935fd86bcfe91a451a584dfc27f1e068f568b9ad1ab7/nvidia_cudnn_cu12-9.10.2.21-py3-none-manylinux_2_27_aarch64.whl", hash = "sha256:c9132cc3f8958447b4910a1720036d9eff5928cc3179b0a51fb6d167c6cc87d8", size = 705026878, upload-time = "2025-06-06T21:52:51.348Z" },
@@ -2654,7 +2681,7 @@ name = "nvidia-cufft-cu12"
 version = "11.3.3.83"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
-    { name = "nvidia-nvjitlink-cu12", marker = "(sys_platform != 'emscripten' and sys_platform != 'win32') or (sys_platform == 'emscripten' and extra == 'extra-5-cathy-chatterbox' and extra == 'extra-5-cathy-fish') or (sys_platform == 'emscripten' and extra == 'extra-5-cathy-chatterbox' and extra == 'extra-5-cathy-qwen') or (sys_platform == 'emscripten' and extra == 'extra-5-cathy-fish' and extra == 'extra-5-cathy-qwen') or (sys_platform == 'win32' and extra == 'extra-5-cathy-chatterbox' and extra == 'extra-5-cathy-fish') or (sys_platform == 'win32' and extra == 'extra-5-cathy-chatterbox' and extra == 'extra-5-cathy-qwen') or (sys_platform == 'win32' and extra == 'extra-5-cathy-fish' and extra == 'extra-5-cathy-qwen') or (sys_platform == 'emscripten' and extra != 'extra-5-cathy-chatterbox' and extra != 'extra-5-cathy-fish' and extra != 'extra-5-cathy-qwen') or (sys_platform == 'win32' and extra != 'extra-5-cathy-chatterbox' and extra != 'extra-5-cathy-fish' and extra != 'extra-5-cathy-qwen')" },
+    { name = "nvidia-nvjitlink-cu12", marker = "(sys_platform != 'emscripten' and sys_platform != 'win32') or (sys_platform == 'emscripten' and extra == 'extra-5-cathy-chatterbox' and extra == 'extra-5-cathy-fish') or (sys_platform == 'emscripten' and extra == 'extra-5-cathy-chatterbox' and extra == 'extra-5-cathy-qwen') or (sys_platform == 'emscripten' and extra == 'extra-5-cathy-fish' and extra == 'extra-5-cathy-qwen') or (sys_platform == 'win32' and extra == 'extra-5-cathy-chatterbox' and extra == 'extra-5-cathy-fish') or (sys_platform == 'win32' and extra == 'extra-5-cathy-chatterbox' and extra == 'extra-5-cathy-qwen') or (sys_platform == 'win32' and extra == 'extra-5-cathy-fish' and extra == 'extra-5-cathy-qwen') or (sys_platform == 'emscripten' and extra != 'extra-5-cathy-chatterbox' and extra != 'extra-5-cathy-fish' and extra != 'extra-5-cathy-qwen')" },
 ]
 wheels = [
     { url = "https://files.pythonhosted.org/packages/60/bc/7771846d3a0272026c416fbb7e5f4c1f146d6d80704534d0b187dd6f4800/nvidia_cufft_cu12-11.3.3.83-py3-none-manylinux2014_aarch64.manylinux_2_17_aarch64.whl", hash = "sha256:848ef7224d6305cdb2a4df928759dca7b1201874787083b6e7550dd6765ce69a", size = 193109211, upload-time = "2025-03-07T01:44:56.873Z" },
@@ -2686,9 +2713,9 @@ name = "nvidia-cusolver-cu12"
 version = "11.7.3.90"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
-    { name = "nvidia-cublas-cu12", marker = "(sys_platform != 'emscripten' and sys_platform != 'win32') or (sys_platform == 'emscripten' and extra == 'extra-5-cathy-chatterbox' and extra == 'extra-5-cathy-fish') or (sys_platform == 'emscripten' and extra == 'extra-5-cathy-chatterbox' and extra == 'extra-5-cathy-qwen') or (sys_platform == 'emscripten' and extra == 'extra-5-cathy-fish' and extra == 'extra-5-cathy-qwen') or (sys_platform == 'win32' and extra == 'extra-5-cathy-chatterbox' and extra == 'extra-5-cathy-fish') or (sys_platform == 'win32' and extra == 'extra-5-cathy-chatterbox' and extra == 'extra-5-cathy-qwen') or (sys_platform == 'win32' and extra == 'extra-5-cathy-fish' and extra == 'extra-5-cathy-qwen') or (sys_platform == 'emscripten' and extra != 'extra-5-cathy-chatterbox' and extra != 'extra-5-cathy-fish' and extra != 'extra-5-cathy-qwen') or (sys_platform == 'win32' and extra != 'extra-5-cathy-chatterbox' and extra != 'extra-5-cathy-fish' and extra != 'extra-5-cathy-qwen')" },
-    { name = "nvidia-cusparse-cu12", marker = "(sys_platform != 'emscripten' and sys_platform != 'win32') or (sys_platform == 'emscripten' and extra == 'extra-5-cathy-chatterbox' and extra == 'extra-5-cathy-fish') or (sys_platform == 'emscripten' and extra == 'extra-5-cathy-chatterbox' and extra == 'extra-5-cathy-qwen') or (sys_platform == 'emscripten' and extra == 'extra-5-cathy-fish' and extra == 'extra-5-cathy-qwen') or (sys_platform == 'win32' and extra == 'extra-5-cathy-chatterbox' and extra == 'extra-5-cathy-fish') or (sys_platform == 'win32' and extra == 'extra-5-cathy-chatterbox' and extra == 'extra-5-cathy-qwen') or (sys_platform == 'win32' and extra == 'extra-5-cathy-fish' and extra == 'extra-5-cathy-qwen') or (sys_platform == 'emscripten' and extra != 'extra-5-cathy-chatterbox' and extra != 'extra-5-cathy-fish' and extra != 'extra-5-cathy-qwen') or (sys_platform == 'win32' and extra != 'extra-5-cathy-chatterbox' and extra != 'extra-5-cathy-fish' and extra != 'extra-5-cathy-qwen')" },
-    { name = "nvidia-nvjitlink-cu12", marker = "(sys_platform != 'emscripten' and sys_platform != 'win32') or (sys_platform == 'emscripten' and extra == 'extra-5-cathy-chatterbox' and extra == 'extra-5-cathy-fish') or (sys_platform == 'emscripten' and extra == 'extra-5-cathy-chatterbox' and extra == 'extra-5-cathy-qwen') or (sys_platform == 'emscripten' and extra == 'extra-5-cathy-fish' and extra == 'extra-5-cathy-qwen') or (sys_platform == 'win32' and extra == 'extra-5-cathy-chatterbox' and extra == 'extra-5-cathy-fish') or (sys_platform == 'win32' and extra == 'extra-5-cathy-chatterbox' and extra == 'extra-5-cathy-qwen') or (sys_platform == 'win32' and extra == 'extra-5-cathy-fish' and extra == 'extra-5-cathy-qwen') or (sys_platform == 'emscripten' and extra != 'extra-5-cathy-chatterbox' and extra != 'extra-5-cathy-fish' and extra != 'extra-5-cathy-qwen') or (sys_platform == 'win32' and extra != 'extra-5-cathy-chatterbox' and extra != 'extra-5-cathy-fish' and extra != 'extra-5-cathy-qwen')" },
+    { name = "nvidia-cublas-cu12", marker = "(sys_platform != 'emscripten' and sys_platform != 'win32') or (sys_platform == 'emscripten' and extra == 'extra-5-cathy-chatterbox' and extra == 'extra-5-cathy-fish') or (sys_platform == 'emscripten' and extra == 'extra-5-cathy-chatterbox' and extra == 'extra-5-cathy-qwen') or (sys_platform == 'emscripten' and extra == 'extra-5-cathy-fish' and extra == 'extra-5-cathy-qwen') or (sys_platform == 'win32' and extra == 'extra-5-cathy-chatterbox' and extra == 'extra-5-cathy-fish') or (sys_platform == 'win32' and extra == 'extra-5-cathy-chatterbox' and extra == 'extra-5-cathy-qwen') or (sys_platform == 'win32' and extra == 'extra-5-cathy-fish' and extra == 'extra-5-cathy-qwen') or (sys_platform == 'emscripten' and extra != 'extra-5-cathy-chatterbox' and extra != 'extra-5-cathy-fish' and extra != 'extra-5-cathy-qwen')" },
+    { name = "nvidia-cusparse-cu12", marker = "(sys_platform != 'emscripten' and sys_platform != 'win32') or (sys_platform == 'emscripten' and extra == 'extra-5-cathy-chatterbox' and extra == 'extra-5-cathy-fish') or (sys_platform == 'emscripten' and extra == 'extra-5-cathy-chatterbox' and extra == 'extra-5-cathy-qwen') or (sys_platform == 'emscripten' and extra == 'extra-5-cathy-fish' and extra == 'extra-5-cathy-qwen') or (sys_platform == 'win32' and extra == 'extra-5-cathy-chatterbox' and extra == 'extra-5-cathy-fish') or (sys_platform == 'win32' and extra == 'extra-5-cathy-chatterbox' and extra == 'extra-5-cathy-qwen') or (sys_platform == 'win32' and extra == 'extra-5-cathy-fish' and extra == 'extra-5-cathy-qwen') or (sys_platform == 'emscripten' and extra != 'extra-5-cathy-chatterbox' and extra != 'extra-5-cathy-fish' and extra != 'extra-5-cathy-qwen')" },
+    { name = "nvidia-nvjitlink-cu12", marker = "(sys_platform != 'emscripten' and sys_platform != 'win32') or (sys_platform == 'emscripten' and extra == 'extra-5-cathy-chatterbox' and extra == 'extra-5-cathy-fish') or (sys_platform == 'emscripten' and extra == 'extra-5-cathy-chatterbox' and extra == 'extra-5-cathy-qwen') or (sys_platform == 'emscripten' and extra == 'extra-5-cathy-fish' and extra == 'extra-5-cathy-qwen') or (sys_platform == 'win32' and extra == 'extra-5-cathy-chatterbox' and extra == 'extra-5-cathy-fish') or (sys_platform == 'win32' and extra == 'extra-5-cathy-chatterbox' and extra == 'extra-5-cathy-qwen') or (sys_platform == 'win32' and extra == 'extra-5-cathy-fish' and extra == 'extra-5-cathy-qwen') or (sys_platform == 'emscripten' and extra != 'extra-5-cathy-chatterbox' and extra != 'extra-5-cathy-fish' and extra != 'extra-5-cathy-qwen')" },
 ]
 wheels = [
     { url = "https://files.pythonhosted.org/packages/c8/32/f7cd6ce8a7690544d084ea21c26e910a97e077c9b7f07bf5de623ee19981/nvidia_cusolver_cu12-11.7.3.90-py3-none-manylinux_2_27_aarch64.whl", hash = "sha256:db9ed69dbef9715071232caa9b69c52ac7de3a95773c2db65bdba85916e4e5c0", size = 267229841, upload-time = "2025-03-07T01:46:54.356Z" },
@@ -2701,7 +2728,7 @@ name = "nvidia-cusparse-cu12"
 version = "12.5.8.93"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
-    { name = "nvidia-nvjitlink-cu12", marker = "(sys_platform != 'emscripten' and sys_platform != 'win32') or (sys_platform == 'emscripten' and extra == 'extra-5-cathy-chatterbox' and extra == 'extra-5-cathy-fish') or (sys_platform == 'emscripten' and extra == 'extra-5-cathy-chatterbox' and extra == 'extra-5-cathy-qwen') or (sys_platform == 'emscripten' and extra == 'extra-5-cathy-fish' and extra == 'extra-5-cathy-qwen') or (sys_platform == 'win32' and extra == 'extra-5-cathy-chatterbox' and extra == 'extra-5-cathy-fish') or (sys_platform == 'win32' and extra == 'extra-5-cathy-chatterbox' and extra == 'extra-5-cathy-qwen') or (sys_platform == 'win32' and extra == 'extra-5-cathy-fish' and extra == 'extra-5-cathy-qwen') or (sys_platform == 'emscripten' and extra != 'extra-5-cathy-chatterbox' and extra != 'extra-5-cathy-fish' and extra != 'extra-5-cathy-qwen') or (sys_platform == 'win32' and extra != 'extra-5-cathy-chatterbox' and extra != 'extra-5-cathy-fish' and extra != 'extra-5-cathy-qwen')" },
+    { name = "nvidia-nvjitlink-cu12", marker = "(sys_platform != 'emscripten' and sys_platform != 'win32') or (sys_platform == 'emscripten' and extra == 'extra-5-cathy-chatterbox' and extra == 'extra-5-cathy-fish') or (sys_platform == 'emscripten' and extra == 'extra-5-cathy-chatterbox' and extra == 'extra-5-cathy-qwen') or (sys_platform == 'emscripten' and extra == 'extra-5-cathy-fish' and extra == 'extra-5-cathy-qwen') or (sys_platform == 'win32' and extra == 'extra-5-cathy-chatterbox' and extra == 'extra-5-cathy-fish') or (sys_platform == 'win32' and extra == 'extra-5-cathy-chatterbox' and extra == 'extra-5-cathy-qwen') or (sys_platform == 'win32' and extra == 'extra-5-cathy-fish' and extra == 'extra-5-cathy-qwen') or (sys_platform == 'emscripten' and extra != 'extra-5-cathy-chatterbox' and extra != 'extra-5-cathy-fish' and extra != 'extra-5-cathy-qwen')" },
 ]
 wheels = [
     { url = "https://files.pythonhosted.org/packages/bc/f7/cd777c4109681367721b00a106f491e0d0d15cfa1fd59672ce580ce42a97/nvidia_cusparse_cu12-12.5.8.93-py3-none-manylinux2014_aarch64.manylinux_2_17_aarch64.whl", hash = "sha256:9b6c161cb130be1a07a27ea6923df8141f3c295852f4b260c65f18f3e0a091dc", size = 288117129, upload-time = "2025-03-07T01:47:40.407Z" },
@@ -3302,7 +3329,8 @@ resolution-markers = [
     "python_full_version < '3.13' and sys_platform == 'win32' and extra == 'extra-5-cathy-chatterbox' and extra != 'extra-5-cathy-fish' and extra != 'extra-5-cathy-qwen'",
     "python_full_version < '3.13' and sys_platform == 'emscripten' and extra == 'extra-5-cathy-chatterbox' and extra != 'extra-5-cathy-fish' and extra != 'extra-5-cathy-qwen'",
     "python_full_version < '3.13' and sys_platform != 'emscripten' and sys_platform != 'win32' and extra == 'extra-5-cathy-chatterbox' and extra != 'extra-5-cathy-fish' and extra != 'extra-5-cathy-qwen'",
-    "extra != 'extra-5-cathy-chatterbox' and extra != 'extra-5-cathy-fish' and extra != 'extra-5-cathy-qwen'",
+    "sys_platform == 'win32' and extra != 'extra-5-cathy-chatterbox' and extra != 'extra-5-cathy-fish' and extra != 'extra-5-cathy-qwen'",
+    "sys_platform != 'win32' and extra != 'extra-5-cathy-chatterbox' and extra != 'extra-5-cathy-fish' and extra != 'extra-5-cathy-qwen'",
 ]
 dependencies = [
     { name = "annotated-types", marker = "extra == 'extra-5-cathy-chatterbox' or extra != 'extra-5-cathy-fish' or (extra == 'extra-5-cathy-fish' and extra == 'extra-5-cathy-qwen')" },
@@ -3375,7 +3403,8 @@ resolution-markers = [
     "python_full_version < '3.13' and sys_platform == 'win32' and extra == 'extra-5-cathy-chatterbox' and extra != 'extra-5-cathy-fish' and extra != 'extra-5-cathy-qwen'",
     "python_full_version < '3.13' and sys_platform == 'emscripten' and extra == 'extra-5-cathy-chatterbox' and extra != 'extra-5-cathy-fish' and extra != 'extra-5-cathy-qwen'",
     "python_full_version < '3.13' and sys_platform != 'emscripten' and sys_platform != 'win32' and extra == 'extra-5-cathy-chatterbox' and extra != 'extra-5-cathy-fish' and extra != 'extra-5-cathy-qwen'",
-    "extra != 'extra-5-cathy-chatterbox' and extra != 'extra-5-cathy-fish' and extra != 'extra-5-cathy-qwen'",
+    "sys_platform == 'win32' and extra != 'extra-5-cathy-chatterbox' and extra != 'extra-5-cathy-fish' and extra != 'extra-5-cathy-qwen'",
+    "sys_platform != 'win32' and extra != 'extra-5-cathy-chatterbox' and extra != 'extra-5-cathy-fish' and extra != 'extra-5-cathy-qwen'",
 ]
 dependencies = [
     { name = "typing-extensions", marker = "extra == 'extra-5-cathy-chatterbox' or extra != 'extra-5-cathy-fish' or (extra == 'extra-5-cathy-fish' and extra == 'extra-5-cathy-qwen')" },
@@ -3563,7 +3592,8 @@ dependencies = [
     { name = "lightning-utilities" },
     { name = "packaging" },
     { name = "pyyaml" },
-    { name = "torch" },
+    { name = "torch", version = "2.8.0", source = { registry = "https://pypi.org/simple" }, marker = "(sys_platform != 'win32' and extra == 'extra-5-cathy-fish') or (extra == 'extra-5-cathy-chatterbox' and extra == 'extra-5-cathy-fish') or (extra == 'extra-5-cathy-chatterbox' and extra == 'extra-5-cathy-qwen') or (extra == 'extra-5-cathy-fish' and extra == 'extra-5-cathy-qwen')" },
+    { name = "torch", version = "2.8.0+cu128", source = { registry = "https://download.pytorch.org/whl/cu128" }, marker = "(sys_platform == 'win32' and extra == 'extra-5-cathy-fish') or (extra == 'extra-5-cathy-fish' and extra == 'extra-5-cathy-qwen') or (extra == 'extra-5-cathy-chatterbox' and extra == 'extra-5-cathy-fish') or (extra == 'extra-5-cathy-chatterbox' and extra == 'extra-5-cathy-qwen')" },
     { name = "torchmetrics" },
     { name = "tqdm" },
     { name = "typing-extensions" },
@@ -3658,7 +3688,8 @@ dependencies = [
     { name = "onnxruntime" },
     { name = "soundfile" },
     { name = "sox" },
-    { name = "torchaudio" },
+    { name = "torchaudio", version = "2.8.0", source = { registry = "https://pypi.org/simple" }, marker = "(sys_platform != 'win32' and extra == 'extra-5-cathy-qwen') or (extra == 'extra-5-cathy-chatterbox' and extra == 'extra-5-cathy-fish') or (extra == 'extra-5-cathy-chatterbox' and extra == 'extra-5-cathy-qwen') or (extra == 'extra-5-cathy-fish' and extra == 'extra-5-cathy-qwen')" },
+    { name = "torchaudio", version = "2.8.0+cu128", source = { registry = "https://download.pytorch.org/whl/cu128" }, marker = "(sys_platform == 'win32' and extra == 'extra-5-cathy-qwen') or (extra == 'extra-5-cathy-fish' and extra == 'extra-5-cathy-qwen') or (extra == 'extra-5-cathy-chatterbox' and extra == 'extra-5-cathy-fish') or (extra == 'extra-5-cathy-chatterbox' and extra == 'extra-5-cathy-qwen')" },
     { name = "transformers", version = "4.57.3", source = { registry = "https://pypi.org/simple" } },
 ]
 sdist = { url = "https://files.pythonhosted.org/packages/39/5d/b339c4f34f22ce838d39d1c015bbad103cd4003f6826ac3afaf1553973a0/qwen_tts-0.1.1.tar.gz", hash = "sha256:afba5fa235806a6883f46a389e67540b46f8a55da457216bf1d7342903814780", size = 114131, upload-time = "2026-02-06T04:10:53.454Z" }
@@ -3808,8 +3839,10 @@ dependencies = [
     { name = "sox" },
     { name = "tabulate" },
     { name = "tensorboard" },
-    { name = "torch" },
-    { name = "torchaudio" },
+    { name = "torch", version = "2.8.0", source = { registry = "https://pypi.org/simple" }, marker = "(sys_platform != 'win32' and extra == 'extra-5-cathy-chatterbox') or (extra == 'extra-5-cathy-chatterbox' and extra == 'extra-5-cathy-fish') or (extra == 'extra-5-cathy-chatterbox' and extra == 'extra-5-cathy-qwen') or (extra == 'extra-5-cathy-fish' and extra == 'extra-5-cathy-qwen')" },
+    { name = "torch", version = "2.8.0+cu128", source = { registry = "https://download.pytorch.org/whl/cu128" }, marker = "(sys_platform == 'win32' and extra == 'extra-5-cathy-chatterbox') or (extra == 'extra-5-cathy-chatterbox' and extra == 'extra-5-cathy-fish') or (extra == 'extra-5-cathy-chatterbox' and extra == 'extra-5-cathy-qwen') or (extra == 'extra-5-cathy-fish' and extra == 'extra-5-cathy-qwen')" },
+    { name = "torchaudio", version = "2.8.0", source = { registry = "https://pypi.org/simple" }, marker = "(sys_platform != 'win32' and extra == 'extra-5-cathy-chatterbox') or (extra == 'extra-5-cathy-chatterbox' and extra == 'extra-5-cathy-fish') or (extra == 'extra-5-cathy-chatterbox' and extra == 'extra-5-cathy-qwen') or (extra == 'extra-5-cathy-fish' and extra == 'extra-5-cathy-qwen')" },
+    { name = "torchaudio", version = "2.8.0+cu128", source = { registry = "https://download.pytorch.org/whl/cu128" }, marker = "(sys_platform == 'win32' and extra == 'extra-5-cathy-chatterbox') or (extra == 'extra-5-cathy-chatterbox' and extra == 'extra-5-cathy-fish') or (extra == 'extra-5-cathy-chatterbox' and extra == 'extra-5-cathy-qwen') or (extra == 'extra-5-cathy-fish' and extra == 'extra-5-cathy-qwen')" },
     { name = "tqdm" },
 ]
 
@@ -3883,8 +3916,10 @@ dependencies = [
     { name = "numpy", version = "2.5.2", source = { registry = "https://pypi.org/simple" }, marker = "(python_full_version >= '3.13' and extra == 'extra-5-cathy-chatterbox') or (extra == 'extra-5-cathy-chatterbox' and extra == 'extra-5-cathy-fish') or (extra == 'extra-5-cathy-chatterbox' and extra == 'extra-5-cathy-qwen') or (extra == 'extra-5-cathy-fish' and extra == 'extra-5-cathy-qwen')" },
     { name = "onnx" },
     { name = "pre-commit" },
-    { name = "torch" },
-    { name = "torchaudio" },
+    { name = "torch", version = "2.8.0", source = { registry = "https://pypi.org/simple" }, marker = "(sys_platform != 'win32' and extra == 'extra-5-cathy-chatterbox') or (extra == 'extra-5-cathy-chatterbox' and extra == 'extra-5-cathy-fish') or (extra == 'extra-5-cathy-chatterbox' and extra == 'extra-5-cathy-qwen') or (extra == 'extra-5-cathy-fish' and extra == 'extra-5-cathy-qwen')" },
+    { name = "torch", version = "2.8.0+cu128", source = { registry = "https://download.pytorch.org/whl/cu128" }, marker = "(sys_platform == 'win32' and extra == 'extra-5-cathy-chatterbox') or (extra == 'extra-5-cathy-chatterbox' and extra == 'extra-5-cathy-fish') or (extra == 'extra-5-cathy-chatterbox' and extra == 'extra-5-cathy-qwen') or (extra == 'extra-5-cathy-fish' and extra == 'extra-5-cathy-qwen')" },
+    { name = "torchaudio", version = "2.8.0", source = { registry = "https://pypi.org/simple" }, marker = "(sys_platform != 'win32' and extra == 'extra-5-cathy-chatterbox') or (extra == 'extra-5-cathy-chatterbox' and extra == 'extra-5-cathy-fish') or (extra == 'extra-5-cathy-chatterbox' and extra == 'extra-5-cathy-qwen') or (extra == 'extra-5-cathy-fish' and extra == 'extra-5-cathy-qwen')" },
+    { name = "torchaudio", version = "2.8.0+cu128", source = { registry = "https://download.pytorch.org/whl/cu128" }, marker = "(sys_platform == 'win32' and extra == 'extra-5-cathy-chatterbox') or (extra == 'extra-5-cathy-chatterbox' and extra == 'extra-5-cathy-fish') or (extra == 'extra-5-cathy-chatterbox' and extra == 'extra-5-cathy-qwen') or (extra == 'extra-5-cathy-fish' and extra == 'extra-5-cathy-qwen')" },
     { name = "tqdm" },
 ]
 sdist = { url = "https://files.pythonhosted.org/packages/94/4e/e64bb980309a22d186efedcd9e5f060a5b1cbffc5c19b356bb42dcc82e07/s3tokenizer-0.3.0.tar.gz", hash = "sha256:786a5ff8b5ca023507e0a6a8c7793a6aa1b1550a73d7676851d1b8c8b12889c5", size = 227180, upload-time = "2025-12-22T03:12:25.71Z" }
@@ -3951,7 +3986,8 @@ resolution-markers = [
     "python_full_version < '3.13' and sys_platform == 'win32' and extra != 'extra-5-cathy-chatterbox' and extra == 'extra-5-cathy-fish' and extra != 'extra-5-cathy-qwen'",
     "python_full_version < '3.13' and sys_platform == 'emscripten' and extra != 'extra-5-cathy-chatterbox' and extra == 'extra-5-cathy-fish' and extra != 'extra-5-cathy-qwen'",
     "python_full_version < '3.13' and sys_platform != 'emscripten' and sys_platform != 'win32' and extra != 'extra-5-cathy-chatterbox' and extra == 'extra-5-cathy-fish' and extra != 'extra-5-cathy-qwen'",
-    "extra != 'extra-5-cathy-chatterbox' and extra != 'extra-5-cathy-fish' and extra != 'extra-5-cathy-qwen'",
+    "sys_platform == 'win32' and extra != 'extra-5-cathy-chatterbox' and extra != 'extra-5-cathy-fish' and extra != 'extra-5-cathy-qwen'",
+    "sys_platform != 'win32' and extra != 'extra-5-cathy-chatterbox' and extra != 'extra-5-cathy-fish' and extra != 'extra-5-cathy-qwen'",
 ]
 sdist = { url = "https://files.pythonhosted.org/packages/45/06/f955dbbb1859e3bd23c8ac6141af5106e7ad5fedec4a3a6e3d60f94b7001/safetensors-0.8.0.tar.gz", hash = "sha256:fabaf3e0f18a6618d9b36560682562157f77c2b71fcffc7b432be2baed9d753d", size = 325846, upload-time = "2026-06-09T07:52:25.563Z" }
 wheels = [
@@ -4149,8 +4185,10 @@ version = "6.2.1"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "packaging" },
-    { name = "torch" },
-    { name = "torchaudio" },
+    { name = "torch", version = "2.8.0", source = { registry = "https://pypi.org/simple" }, marker = "(sys_platform != 'win32' and extra == 'extra-5-cathy-fish') or (extra == 'extra-5-cathy-chatterbox' and extra == 'extra-5-cathy-fish') or (extra == 'extra-5-cathy-chatterbox' and extra == 'extra-5-cathy-qwen') or (extra == 'extra-5-cathy-fish' and extra == 'extra-5-cathy-qwen')" },
+    { name = "torch", version = "2.8.0+cu128", source = { registry = "https://download.pytorch.org/whl/cu128" }, marker = "(sys_platform == 'win32' and extra == 'extra-5-cathy-fish') or (extra == 'extra-5-cathy-fish' and extra == 'extra-5-cathy-qwen') or (extra == 'extra-5-cathy-chatterbox' and extra == 'extra-5-cathy-fish') or (extra == 'extra-5-cathy-chatterbox' and extra == 'extra-5-cathy-qwen')" },
+    { name = "torchaudio", version = "2.8.0", source = { registry = "https://pypi.org/simple" }, marker = "(sys_platform != 'win32' and extra == 'extra-5-cathy-fish') or (extra == 'extra-5-cathy-chatterbox' and extra == 'extra-5-cathy-fish') or (extra == 'extra-5-cathy-chatterbox' and extra == 'extra-5-cathy-qwen') or (extra == 'extra-5-cathy-fish' and extra == 'extra-5-cathy-qwen')" },
+    { name = "torchaudio", version = "2.8.0+cu128", source = { registry = "https://download.pytorch.org/whl/cu128" }, marker = "(sys_platform == 'win32' and extra == 'extra-5-cathy-fish') or (extra == 'extra-5-cathy-fish' and extra == 'extra-5-cathy-qwen') or (extra == 'extra-5-cathy-chatterbox' and extra == 'extra-5-cathy-fish') or (extra == 'extra-5-cathy-chatterbox' and extra == 'extra-5-cathy-qwen')" },
 ]
 sdist = { url = "https://files.pythonhosted.org/packages/32/d3/e31f526482782764aa4f70e20fd4545cf2e4a81a60b6fb0f089f6d107991/silero_vad-6.2.1.tar.gz", hash = "sha256:b23062b0e39fad17b1266fc23c1e7b4290219dbe82ce08510889e32f681f4b3b", size = 28913811, upload-time = "2026-02-24T08:41:59.329Z" }
 wheels = [
@@ -4290,7 +4328,8 @@ source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "curated-tokenizers" },
     { name = "curated-transformers" },
-    { name = "torch" },
+    { name = "torch", version = "2.8.0", source = { registry = "https://pypi.org/simple" }, marker = "sys_platform != 'win32' or (extra == 'extra-5-cathy-chatterbox' and extra == 'extra-5-cathy-fish') or (extra == 'extra-5-cathy-chatterbox' and extra == 'extra-5-cathy-qwen') or (extra == 'extra-5-cathy-fish' and extra == 'extra-5-cathy-qwen')" },
+    { name = "torch", version = "2.8.0+cu128", source = { registry = "https://download.pytorch.org/whl/cu128" }, marker = "sys_platform == 'win32' or (extra == 'extra-5-cathy-chatterbox' and extra == 'extra-5-cathy-fish') or (extra == 'extra-5-cathy-chatterbox' and extra == 'extra-5-cathy-qwen') or (extra == 'extra-5-cathy-fish' and extra == 'extra-5-cathy-qwen')" },
 ]
 sdist = { url = "https://files.pythonhosted.org/packages/d8/b3/a4fd3cf28008cbe1d95463b5c76a0d9c8da7b9ad4f06289c2be4aae62052/spacy_curated_transformers-0.3.1.tar.gz", hash = "sha256:7e53fccf64260e641b0a3f2b65b6d98381b86cef6eeb21ce279e8db849e8525d", size = 218990, upload-time = "2025-05-28T10:29:32.69Z" }
 wheels = [
@@ -4699,12 +4738,27 @@ wheels = [
 name = "torch"
 version = "2.8.0"
 source = { registry = "https://pypi.org/simple" }
+resolution-markers = [
+    "python_full_version >= '3.13' and sys_platform == 'emscripten' and extra != 'extra-5-cathy-chatterbox' and extra != 'extra-5-cathy-fish' and extra == 'extra-5-cathy-qwen'",
+    "python_full_version >= '3.13' and sys_platform != 'emscripten' and sys_platform != 'win32' and extra != 'extra-5-cathy-chatterbox' and extra != 'extra-5-cathy-fish' and extra == 'extra-5-cathy-qwen'",
+    "python_full_version < '3.13' and sys_platform == 'emscripten' and extra != 'extra-5-cathy-chatterbox' and extra != 'extra-5-cathy-fish' and extra == 'extra-5-cathy-qwen'",
+    "python_full_version < '3.13' and sys_platform != 'emscripten' and sys_platform != 'win32' and extra != 'extra-5-cathy-chatterbox' and extra != 'extra-5-cathy-fish' and extra == 'extra-5-cathy-qwen'",
+    "python_full_version >= '3.13' and sys_platform == 'emscripten' and extra != 'extra-5-cathy-chatterbox' and extra == 'extra-5-cathy-fish' and extra != 'extra-5-cathy-qwen'",
+    "python_full_version >= '3.13' and sys_platform != 'emscripten' and sys_platform != 'win32' and extra != 'extra-5-cathy-chatterbox' and extra == 'extra-5-cathy-fish' and extra != 'extra-5-cathy-qwen'",
+    "python_full_version < '3.13' and sys_platform == 'emscripten' and extra != 'extra-5-cathy-chatterbox' and extra == 'extra-5-cathy-fish' and extra != 'extra-5-cathy-qwen'",
+    "python_full_version < '3.13' and sys_platform != 'emscripten' and sys_platform != 'win32' and extra != 'extra-5-cathy-chatterbox' and extra == 'extra-5-cathy-fish' and extra != 'extra-5-cathy-qwen'",
+    "python_full_version >= '3.13' and sys_platform == 'emscripten' and extra == 'extra-5-cathy-chatterbox' and extra != 'extra-5-cathy-fish' and extra != 'extra-5-cathy-qwen'",
+    "python_full_version >= '3.13' and sys_platform != 'emscripten' and sys_platform != 'win32' and extra == 'extra-5-cathy-chatterbox' and extra != 'extra-5-cathy-fish' and extra != 'extra-5-cathy-qwen'",
+    "python_full_version < '3.13' and sys_platform == 'emscripten' and extra == 'extra-5-cathy-chatterbox' and extra != 'extra-5-cathy-fish' and extra != 'extra-5-cathy-qwen'",
+    "python_full_version < '3.13' and sys_platform != 'emscripten' and sys_platform != 'win32' and extra == 'extra-5-cathy-chatterbox' and extra != 'extra-5-cathy-fish' and extra != 'extra-5-cathy-qwen'",
+    "sys_platform != 'win32' and extra != 'extra-5-cathy-chatterbox' and extra != 'extra-5-cathy-fish' and extra != 'extra-5-cathy-qwen'",
+]
 dependencies = [
-    { name = "filelock" },
-    { name = "fsspec", version = "2024.2.0", source = { registry = "https://pypi.org/simple" }, marker = "extra == 'extra-5-cathy-fish' or (extra == 'extra-5-cathy-chatterbox' and extra == 'extra-5-cathy-qwen')" },
-    { name = "fsspec", version = "2026.7.0", source = { registry = "https://pypi.org/simple" }, marker = "extra == 'extra-5-cathy-chatterbox' or extra != 'extra-5-cathy-fish' or (extra == 'extra-5-cathy-fish' and extra == 'extra-5-cathy-qwen')" },
-    { name = "jinja2" },
-    { name = "networkx" },
+    { name = "filelock", marker = "sys_platform != 'win32' or (extra == 'extra-5-cathy-chatterbox' and extra == 'extra-5-cathy-fish') or (extra == 'extra-5-cathy-chatterbox' and extra == 'extra-5-cathy-qwen') or (extra == 'extra-5-cathy-fish' and extra == 'extra-5-cathy-qwen')" },
+    { name = "fsspec", version = "2024.2.0", source = { registry = "https://pypi.org/simple" }, marker = "(sys_platform != 'win32' and extra == 'extra-5-cathy-fish') or (extra == 'extra-5-cathy-chatterbox' and extra == 'extra-5-cathy-fish') or (extra == 'extra-5-cathy-chatterbox' and extra == 'extra-5-cathy-qwen') or (extra == 'extra-5-cathy-fish' and extra == 'extra-5-cathy-qwen')" },
+    { name = "fsspec", version = "2026.7.0", source = { registry = "https://pypi.org/simple" }, marker = "(sys_platform != 'win32' and extra == 'extra-5-cathy-chatterbox') or (sys_platform != 'win32' and extra != 'extra-5-cathy-fish') or (extra == 'extra-5-cathy-chatterbox' and extra == 'extra-5-cathy-fish') or (extra == 'extra-5-cathy-chatterbox' and extra == 'extra-5-cathy-qwen') or (extra == 'extra-5-cathy-fish' and extra == 'extra-5-cathy-qwen')" },
+    { name = "jinja2", marker = "sys_platform != 'win32' or (extra == 'extra-5-cathy-chatterbox' and extra == 'extra-5-cathy-fish') or (extra == 'extra-5-cathy-chatterbox' and extra == 'extra-5-cathy-qwen') or (extra == 'extra-5-cathy-fish' and extra == 'extra-5-cathy-qwen')" },
+    { name = "networkx", marker = "sys_platform != 'win32' or (extra == 'extra-5-cathy-chatterbox' and extra == 'extra-5-cathy-fish') or (extra == 'extra-5-cathy-chatterbox' and extra == 'extra-5-cathy-qwen') or (extra == 'extra-5-cathy-fish' and extra == 'extra-5-cathy-qwen')" },
     { name = "nvidia-cublas-cu12", marker = "(platform_machine == 'x86_64' and sys_platform == 'linux') or (platform_machine != 'x86_64' and extra == 'extra-5-cathy-chatterbox' and extra == 'extra-5-cathy-fish') or (platform_machine != 'x86_64' and extra == 'extra-5-cathy-chatterbox' and extra == 'extra-5-cathy-qwen') or (platform_machine != 'x86_64' and extra == 'extra-5-cathy-fish' and extra == 'extra-5-cathy-qwen') or (sys_platform != 'linux' and extra == 'extra-5-cathy-chatterbox' and extra == 'extra-5-cathy-fish') or (sys_platform != 'linux' and extra == 'extra-5-cathy-chatterbox' and extra == 'extra-5-cathy-qwen') or (sys_platform != 'linux' and extra == 'extra-5-cathy-fish' and extra == 'extra-5-cathy-qwen')" },
     { name = "nvidia-cuda-cupti-cu12", marker = "(platform_machine == 'x86_64' and sys_platform == 'linux') or (platform_machine != 'x86_64' and extra == 'extra-5-cathy-chatterbox' and extra == 'extra-5-cathy-fish') or (platform_machine != 'x86_64' and extra == 'extra-5-cathy-chatterbox' and extra == 'extra-5-cathy-qwen') or (platform_machine != 'x86_64' and extra == 'extra-5-cathy-fish' and extra == 'extra-5-cathy-qwen') or (sys_platform != 'linux' and extra == 'extra-5-cathy-chatterbox' and extra == 'extra-5-cathy-fish') or (sys_platform != 'linux' and extra == 'extra-5-cathy-chatterbox' and extra == 'extra-5-cathy-qwen') or (sys_platform != 'linux' and extra == 'extra-5-cathy-fish' and extra == 'extra-5-cathy-qwen')" },
     { name = "nvidia-cuda-nvrtc-cu12", marker = "(platform_machine == 'x86_64' and sys_platform == 'linux') or (platform_machine != 'x86_64' and extra == 'extra-5-cathy-chatterbox' and extra == 'extra-5-cathy-fish') or (platform_machine != 'x86_64' and extra == 'extra-5-cathy-chatterbox' and extra == 'extra-5-cathy-qwen') or (platform_machine != 'x86_64' and extra == 'extra-5-cathy-fish' and extra == 'extra-5-cathy-qwen') or (sys_platform != 'linux' and extra == 'extra-5-cathy-chatterbox' and extra == 'extra-5-cathy-fish') or (sys_platform != 'linux' and extra == 'extra-5-cathy-chatterbox' and extra == 'extra-5-cathy-qwen') or (sys_platform != 'linux' and extra == 'extra-5-cathy-fish' and extra == 'extra-5-cathy-qwen')" },
@@ -4719,10 +4773,10 @@ dependencies = [
     { name = "nvidia-nccl-cu12", marker = "(platform_machine == 'x86_64' and sys_platform == 'linux') or (platform_machine != 'x86_64' and extra == 'extra-5-cathy-chatterbox' and extra == 'extra-5-cathy-fish') or (platform_machine != 'x86_64' and extra == 'extra-5-cathy-chatterbox' and extra == 'extra-5-cathy-qwen') or (platform_machine != 'x86_64' and extra == 'extra-5-cathy-fish' and extra == 'extra-5-cathy-qwen') or (sys_platform != 'linux' and extra == 'extra-5-cathy-chatterbox' and extra == 'extra-5-cathy-fish') or (sys_platform != 'linux' and extra == 'extra-5-cathy-chatterbox' and extra == 'extra-5-cathy-qwen') or (sys_platform != 'linux' and extra == 'extra-5-cathy-fish' and extra == 'extra-5-cathy-qwen')" },
     { name = "nvidia-nvjitlink-cu12", marker = "(platform_machine == 'x86_64' and sys_platform == 'linux') or (platform_machine != 'x86_64' and extra == 'extra-5-cathy-chatterbox' and extra == 'extra-5-cathy-fish') or (platform_machine != 'x86_64' and extra == 'extra-5-cathy-chatterbox' and extra == 'extra-5-cathy-qwen') or (platform_machine != 'x86_64' and extra == 'extra-5-cathy-fish' and extra == 'extra-5-cathy-qwen') or (sys_platform != 'linux' and extra == 'extra-5-cathy-chatterbox' and extra == 'extra-5-cathy-fish') or (sys_platform != 'linux' and extra == 'extra-5-cathy-chatterbox' and extra == 'extra-5-cathy-qwen') or (sys_platform != 'linux' and extra == 'extra-5-cathy-fish' and extra == 'extra-5-cathy-qwen')" },
     { name = "nvidia-nvtx-cu12", marker = "(platform_machine == 'x86_64' and sys_platform == 'linux') or (platform_machine != 'x86_64' and extra == 'extra-5-cathy-chatterbox' and extra == 'extra-5-cathy-fish') or (platform_machine != 'x86_64' and extra == 'extra-5-cathy-chatterbox' and extra == 'extra-5-cathy-qwen') or (platform_machine != 'x86_64' and extra == 'extra-5-cathy-fish' and extra == 'extra-5-cathy-qwen') or (sys_platform != 'linux' and extra == 'extra-5-cathy-chatterbox' and extra == 'extra-5-cathy-fish') or (sys_platform != 'linux' and extra == 'extra-5-cathy-chatterbox' and extra == 'extra-5-cathy-qwen') or (sys_platform != 'linux' and extra == 'extra-5-cathy-fish' and extra == 'extra-5-cathy-qwen')" },
-    { name = "setuptools" },
-    { name = "sympy" },
+    { name = "setuptools", marker = "sys_platform != 'win32' or (extra == 'extra-5-cathy-chatterbox' and extra == 'extra-5-cathy-fish') or (extra == 'extra-5-cathy-chatterbox' and extra == 'extra-5-cathy-qwen') or (extra == 'extra-5-cathy-fish' and extra == 'extra-5-cathy-qwen')" },
+    { name = "sympy", marker = "sys_platform != 'win32' or (extra == 'extra-5-cathy-chatterbox' and extra == 'extra-5-cathy-fish') or (extra == 'extra-5-cathy-chatterbox' and extra == 'extra-5-cathy-qwen') or (extra == 'extra-5-cathy-fish' and extra == 'extra-5-cathy-qwen')" },
     { name = "triton", marker = "(platform_machine == 'x86_64' and sys_platform == 'linux') or (platform_machine != 'x86_64' and extra == 'extra-5-cathy-chatterbox' and extra == 'extra-5-cathy-fish') or (platform_machine != 'x86_64' and extra == 'extra-5-cathy-chatterbox' and extra == 'extra-5-cathy-qwen') or (platform_machine != 'x86_64' and extra == 'extra-5-cathy-fish' and extra == 'extra-5-cathy-qwen') or (sys_platform != 'linux' and extra == 'extra-5-cathy-chatterbox' and extra == 'extra-5-cathy-fish') or (sys_platform != 'linux' and extra == 'extra-5-cathy-chatterbox' and extra == 'extra-5-cathy-qwen') or (sys_platform != 'linux' and extra == 'extra-5-cathy-fish' and extra == 'extra-5-cathy-qwen')" },
-    { name = "typing-extensions" },
+    { name = "typing-extensions", marker = "sys_platform != 'win32' or (extra == 'extra-5-cathy-chatterbox' and extra == 'extra-5-cathy-fish') or (extra == 'extra-5-cathy-chatterbox' and extra == 'extra-5-cathy-qwen') or (extra == 'extra-5-cathy-fish' and extra == 'extra-5-cathy-qwen')" },
 ]
 wheels = [
     { url = "https://files.pythonhosted.org/packages/49/0c/2fd4df0d83a495bb5e54dca4474c4ec5f9c62db185421563deeb5dabf609/torch-2.8.0-cp312-cp312-manylinux_2_28_aarch64.whl", hash = "sha256:e2fab4153768d433f8ed9279c8133a114a034a61e77a3a104dcdf54388838705", size = 101906089, upload-time = "2025-08-06T14:53:52.631Z" },
@@ -4740,14 +4794,48 @@ wheels = [
 ]
 
 [[package]]
+name = "torch"
+version = "2.8.0+cu128"
+source = { registry = "https://download.pytorch.org/whl/cu128" }
+resolution-markers = [
+    "python_full_version >= '3.13' and sys_platform == 'win32' and extra != 'extra-5-cathy-chatterbox' and extra != 'extra-5-cathy-fish' and extra == 'extra-5-cathy-qwen'",
+    "python_full_version < '3.13' and sys_platform == 'win32' and extra != 'extra-5-cathy-chatterbox' and extra != 'extra-5-cathy-fish' and extra == 'extra-5-cathy-qwen'",
+    "python_full_version >= '3.13' and sys_platform == 'win32' and extra != 'extra-5-cathy-chatterbox' and extra == 'extra-5-cathy-fish' and extra != 'extra-5-cathy-qwen'",
+    "python_full_version < '3.13' and sys_platform == 'win32' and extra != 'extra-5-cathy-chatterbox' and extra == 'extra-5-cathy-fish' and extra != 'extra-5-cathy-qwen'",
+    "python_full_version >= '3.13' and sys_platform == 'win32' and extra == 'extra-5-cathy-chatterbox' and extra != 'extra-5-cathy-fish' and extra != 'extra-5-cathy-qwen'",
+    "python_full_version < '3.13' and sys_platform == 'win32' and extra == 'extra-5-cathy-chatterbox' and extra != 'extra-5-cathy-fish' and extra != 'extra-5-cathy-qwen'",
+    "sys_platform == 'win32' and extra != 'extra-5-cathy-chatterbox' and extra != 'extra-5-cathy-fish' and extra != 'extra-5-cathy-qwen'",
+]
+dependencies = [
+    { name = "filelock", marker = "sys_platform == 'win32' or (extra == 'extra-5-cathy-chatterbox' and extra == 'extra-5-cathy-fish') or (extra == 'extra-5-cathy-chatterbox' and extra == 'extra-5-cathy-qwen') or (extra == 'extra-5-cathy-fish' and extra == 'extra-5-cathy-qwen')" },
+    { name = "fsspec", version = "2024.2.0", source = { registry = "https://pypi.org/simple" }, marker = "(sys_platform == 'win32' and extra == 'extra-5-cathy-fish') or (extra == 'extra-5-cathy-fish' and extra == 'extra-5-cathy-qwen') or (extra == 'extra-5-cathy-chatterbox' and extra == 'extra-5-cathy-fish') or (extra == 'extra-5-cathy-chatterbox' and extra == 'extra-5-cathy-qwen')" },
+    { name = "fsspec", version = "2026.7.0", source = { registry = "https://pypi.org/simple" }, marker = "(sys_platform == 'win32' and extra == 'extra-5-cathy-chatterbox') or (sys_platform == 'win32' and extra != 'extra-5-cathy-fish') or (extra == 'extra-5-cathy-chatterbox' and extra == 'extra-5-cathy-fish') or (extra == 'extra-5-cathy-chatterbox' and extra == 'extra-5-cathy-qwen') or (extra == 'extra-5-cathy-fish' and extra == 'extra-5-cathy-qwen')" },
+    { name = "jinja2", marker = "sys_platform == 'win32' or (extra == 'extra-5-cathy-chatterbox' and extra == 'extra-5-cathy-fish') or (extra == 'extra-5-cathy-chatterbox' and extra == 'extra-5-cathy-qwen') or (extra == 'extra-5-cathy-fish' and extra == 'extra-5-cathy-qwen')" },
+    { name = "networkx", marker = "sys_platform == 'win32' or (extra == 'extra-5-cathy-chatterbox' and extra == 'extra-5-cathy-fish') or (extra == 'extra-5-cathy-chatterbox' and extra == 'extra-5-cathy-qwen') or (extra == 'extra-5-cathy-fish' and extra == 'extra-5-cathy-qwen')" },
+    { name = "setuptools", marker = "sys_platform == 'win32' or (extra == 'extra-5-cathy-chatterbox' and extra == 'extra-5-cathy-fish') or (extra == 'extra-5-cathy-chatterbox' and extra == 'extra-5-cathy-qwen') or (extra == 'extra-5-cathy-fish' and extra == 'extra-5-cathy-qwen')" },
+    { name = "sympy", marker = "sys_platform == 'win32' or (extra == 'extra-5-cathy-chatterbox' and extra == 'extra-5-cathy-fish') or (extra == 'extra-5-cathy-chatterbox' and extra == 'extra-5-cathy-qwen') or (extra == 'extra-5-cathy-fish' and extra == 'extra-5-cathy-qwen')" },
+    { name = "typing-extensions", marker = "sys_platform == 'win32' or (extra == 'extra-5-cathy-chatterbox' and extra == 'extra-5-cathy-fish') or (extra == 'extra-5-cathy-chatterbox' and extra == 'extra-5-cathy-qwen') or (extra == 'extra-5-cathy-fish' and extra == 'extra-5-cathy-qwen')" },
+]
+wheels = [
+    { url = "https://download-r2.pytorch.org/whl/cu128/torch-2.8.0%2Bcu128-cp312-cp312-manylinux_2_28_x86_64.whl", hash = "sha256:4354fc05bb79b208d6995a04ca1ceef6a9547b1c4334435574353d381c55087c", upload-time = "2025-10-01T23:51:02Z" },
+    { url = "https://download-r2.pytorch.org/whl/cu128/torch-2.8.0%2Bcu128-cp312-cp312-win_amd64.whl", hash = "sha256:0ad925202387f4e7314302a1b4f8860fa824357f9b1466d7992bf276370ebcff", upload-time = "2025-10-01T23:51:26Z" },
+    { url = "https://download-r2.pytorch.org/whl/cu128/torch-2.8.0%2Bcu128-cp313-cp313-manylinux_2_28_x86_64.whl", hash = "sha256:3a852369a38dec343d45ecd0bc3660f79b88a23e0c878d18707f7c13bf49538f", upload-time = "2025-10-01T23:52:56Z" },
+    { url = "https://download-r2.pytorch.org/whl/cu128/torch-2.8.0%2Bcu128-cp313-cp313-win_amd64.whl", hash = "sha256:9e20646802b7fc295c1f8b45fefcfc9fb2e4ec9cbe8593443cd2b9cc307c8405", upload-time = "2025-10-01T23:53:20Z" },
+    { url = "https://download-r2.pytorch.org/whl/cu128/torch-2.8.0%2Bcu128-cp313-cp313t-manylinux_2_28_x86_64.whl", hash = "sha256:4295a22d69408e93d25f51e8d5d579345b6b802383e9414b0f3853ed433d53ae", upload-time = "2025-10-01T23:54:56Z" },
+    { url = "https://download-r2.pytorch.org/whl/cu128/torch-2.8.0%2Bcu128-cp313-cp313t-win_amd64.whl", hash = "sha256:970b4f4661fa7b44f6a7e6df65de7fc4a6fff2af610dc415c1d695ca5f1f37d2", upload-time = "2025-10-01T23:55:23Z" },
+]
+
+[[package]]
 name = "torch-stoi"
 version = "0.2.3"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "numpy", version = "1.26.4", source = { registry = "https://pypi.org/simple" } },
     { name = "pystoi" },
-    { name = "torch" },
-    { name = "torchaudio" },
+    { name = "torch", version = "2.8.0", source = { registry = "https://pypi.org/simple" }, marker = "(sys_platform != 'win32' and extra == 'extra-5-cathy-fish') or (extra == 'extra-5-cathy-chatterbox' and extra == 'extra-5-cathy-fish') or (extra == 'extra-5-cathy-chatterbox' and extra == 'extra-5-cathy-qwen') or (extra == 'extra-5-cathy-fish' and extra == 'extra-5-cathy-qwen')" },
+    { name = "torch", version = "2.8.0+cu128", source = { registry = "https://download.pytorch.org/whl/cu128" }, marker = "(sys_platform == 'win32' and extra == 'extra-5-cathy-fish') or (extra == 'extra-5-cathy-fish' and extra == 'extra-5-cathy-qwen') or (extra == 'extra-5-cathy-chatterbox' and extra == 'extra-5-cathy-fish') or (extra == 'extra-5-cathy-chatterbox' and extra == 'extra-5-cathy-qwen')" },
+    { name = "torchaudio", version = "2.8.0", source = { registry = "https://pypi.org/simple" }, marker = "(sys_platform != 'win32' and extra == 'extra-5-cathy-fish') or (extra == 'extra-5-cathy-chatterbox' and extra == 'extra-5-cathy-fish') or (extra == 'extra-5-cathy-chatterbox' and extra == 'extra-5-cathy-qwen') or (extra == 'extra-5-cathy-fish' and extra == 'extra-5-cathy-qwen')" },
+    { name = "torchaudio", version = "2.8.0+cu128", source = { registry = "https://download.pytorch.org/whl/cu128" }, marker = "(sys_platform == 'win32' and extra == 'extra-5-cathy-fish') or (extra == 'extra-5-cathy-fish' and extra == 'extra-5-cathy-qwen') or (extra == 'extra-5-cathy-chatterbox' and extra == 'extra-5-cathy-fish') or (extra == 'extra-5-cathy-chatterbox' and extra == 'extra-5-cathy-qwen')" },
 ]
 sdist = { url = "https://files.pythonhosted.org/packages/47/a4/23be9a35b6c5b5c4547d24c52b07f4a5d55406a5ae43d9cce09f2352d75a/torch_stoi-0.2.3.tar.gz", hash = "sha256:228207b8d63548336c5520b156f1e6b30d3ae3db1fb3c41999f01aee087c5f85", size = 9224, upload-time = "2024-09-30T15:22:12.841Z" }
 wheels = [
@@ -4758,8 +4846,14 @@ wheels = [
 name = "torchaudio"
 version = "2.8.0"
 source = { registry = "https://pypi.org/simple" }
+resolution-markers = [
+    "python_full_version >= '3.13' and sys_platform == 'emscripten'",
+    "python_full_version >= '3.13' and sys_platform != 'emscripten' and sys_platform != 'win32'",
+    "python_full_version < '3.13' and sys_platform == 'emscripten'",
+    "python_full_version < '3.13' and sys_platform != 'emscripten' and sys_platform != 'win32'",
+]
 dependencies = [
-    { name = "torch" },
+    { name = "torch", version = "2.8.0", source = { registry = "https://pypi.org/simple" }, marker = "sys_platform != 'win32'" },
 ]
 wheels = [
     { url = "https://files.pythonhosted.org/packages/ac/cc/c2e2a3eb6ee956f73c68541e439916f8146170ea9cc61e72adea5c995312/torchaudio-2.8.0-cp312-cp312-macosx_11_0_arm64.whl", hash = "sha256:ddef94bf181e6447cbb05f38beaca8f6c5bb8d2b9ddced1aa3452025b9fc70d3", size = 1856736, upload-time = "2025-08-06T14:58:36.3Z" },
@@ -4777,6 +4871,26 @@ wheels = [
 ]
 
 [[package]]
+name = "torchaudio"
+version = "2.8.0+cu128"
+source = { registry = "https://download.pytorch.org/whl/cu128" }
+resolution-markers = [
+    "python_full_version >= '3.13' and sys_platform == 'win32'",
+    "python_full_version < '3.13' and sys_platform == 'win32'",
+]
+dependencies = [
+    { name = "torch", version = "2.8.0+cu128", source = { registry = "https://download.pytorch.org/whl/cu128" }, marker = "sys_platform == 'win32'" },
+]
+wheels = [
+    { url = "https://download-r2.pytorch.org/whl/cu128/torchaudio-2.8.0%2Bcu128-cp312-cp312-manylinux_2_28_x86_64.whl", hash = "sha256:145b8a0c21cfcaa1705c67173c5d439087e0e120d5da9bc344746f937901d243", upload-time = "2025-08-05T20:12:07Z" },
+    { url = "https://download-r2.pytorch.org/whl/cu128/torchaudio-2.8.0%2Bcu128-cp312-cp312-win_amd64.whl", hash = "sha256:cce3a60cd9a97f7360c8f95504ac349311fb7d6b9b826135936764f4de5f782d", upload-time = "2025-08-05T20:12:07Z" },
+    { url = "https://download-r2.pytorch.org/whl/cu128/torchaudio-2.8.0%2Bcu128-cp313-cp313-manylinux_2_28_x86_64.whl", hash = "sha256:410bb8ea46225efe658e5d27a3802c181a2255913003621a5d25a51aca8018d9", upload-time = "2025-08-05T20:12:07Z" },
+    { url = "https://download-r2.pytorch.org/whl/cu128/torchaudio-2.8.0%2Bcu128-cp313-cp313-win_amd64.whl", hash = "sha256:3146bbd48992d215f6bb1aef9626d734c3180b377791ded2a4d4d2c0e63c0cc2", upload-time = "2025-08-05T20:12:07Z" },
+    { url = "https://download-r2.pytorch.org/whl/cu128/torchaudio-2.8.0%2Bcu128-cp313-cp313t-manylinux_2_28_x86_64.whl", hash = "sha256:04b410f93337fc6c16576d0c88e2a31091aef9d1fd212ebb8cd26899dba175e0", upload-time = "2025-08-05T20:12:07Z" },
+    { url = "https://download-r2.pytorch.org/whl/cu128/torchaudio-2.8.0%2Bcu128-cp313-cp313t-win_amd64.whl", hash = "sha256:1054e0a7613cac54ed9b3784a5fcbe023748a70004d9cca74c5f9ae00a1fdfd1", upload-time = "2025-08-05T20:12:07Z" },
+]
+
+[[package]]
 name = "torchmetrics"
 version = "1.9.0"
 source = { registry = "https://pypi.org/simple" }
@@ -4784,7 +4898,8 @@ dependencies = [
     { name = "lightning-utilities" },
     { name = "numpy", version = "1.26.4", source = { registry = "https://pypi.org/simple" } },
     { name = "packaging" },
-    { name = "torch" },
+    { name = "torch", version = "2.8.0", source = { registry = "https://pypi.org/simple" }, marker = "(sys_platform != 'win32' and extra == 'extra-5-cathy-fish') or (extra == 'extra-5-cathy-chatterbox' and extra == 'extra-5-cathy-fish') or (extra == 'extra-5-cathy-chatterbox' and extra == 'extra-5-cathy-qwen') or (extra == 'extra-5-cathy-fish' and extra == 'extra-5-cathy-qwen')" },
+    { name = "torch", version = "2.8.0+cu128", source = { registry = "https://download.pytorch.org/whl/cu128" }, marker = "(sys_platform == 'win32' and extra == 'extra-5-cathy-fish') or (extra == 'extra-5-cathy-fish' and extra == 'extra-5-cathy-qwen') or (extra == 'extra-5-cathy-chatterbox' and extra == 'extra-5-cathy-fish') or (extra == 'extra-5-cathy-chatterbox' and extra == 'extra-5-cathy-qwen')" },
 ]
 sdist = { url = "https://files.pythonhosted.org/packages/81/34/39b8b749333db56c0585d7a11fa62a283c087bb1dfc897d69fb8cedbefb1/torchmetrics-1.9.0.tar.gz", hash = "sha256:a488609948600df52d3db4fcdab02e62aab2a85ef34da67037dc3e65b8512faa", size = 581765, upload-time = "2026-03-09T17:41:22.443Z" }
 wheels = [
@@ -4881,7 +4996,8 @@ resolution-markers = [
     "python_full_version < '3.13' and sys_platform == 'win32' and extra != 'extra-5-cathy-chatterbox' and extra == 'extra-5-cathy-fish' and extra != 'extra-5-cathy-qwen'",
     "python_full_version < '3.13' and sys_platform == 'emscripten' and extra != 'extra-5-cathy-chatterbox' and extra == 'extra-5-cathy-fish' and extra != 'extra-5-cathy-qwen'",
     "python_full_version < '3.13' and sys_platform != 'emscripten' and sys_platform != 'win32' and extra != 'extra-5-cathy-chatterbox' and extra == 'extra-5-cathy-fish' and extra != 'extra-5-cathy-qwen'",
-    "extra != 'extra-5-cathy-chatterbox' and extra != 'extra-5-cathy-fish' and extra != 'extra-5-cathy-qwen'",
+    "sys_platform == 'win32' and extra != 'extra-5-cathy-chatterbox' and extra != 'extra-5-cathy-fish' and extra != 'extra-5-cathy-qwen'",
+    "sys_platform != 'win32' and extra != 'extra-5-cathy-chatterbox' and extra != 'extra-5-cathy-fish' and extra != 'extra-5-cathy-qwen'",
 ]
 dependencies = [
     { name = "huggingface-hub", version = "1.27.0", source = { registry = "https://pypi.org/simple" }, marker = "extra == 'extra-5-cathy-fish' or (extra == 'extra-5-cathy-chatterbox' and extra == 'extra-5-cathy-qwen') or (extra != 'extra-5-cathy-chatterbox' and extra != 'extra-5-cathy-qwen')" },
@@ -4905,7 +5021,7 @@ name = "triton"
 version = "3.4.0"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
-    { name = "setuptools", marker = "(sys_platform != 'emscripten' and sys_platform != 'win32') or (sys_platform == 'emscripten' and extra == 'extra-5-cathy-chatterbox' and extra == 'extra-5-cathy-fish') or (sys_platform == 'emscripten' and extra == 'extra-5-cathy-chatterbox' and extra == 'extra-5-cathy-qwen') or (sys_platform == 'emscripten' and extra == 'extra-5-cathy-fish' and extra == 'extra-5-cathy-qwen') or (sys_platform == 'win32' and extra == 'extra-5-cathy-chatterbox' and extra == 'extra-5-cathy-fish') or (sys_platform == 'win32' and extra == 'extra-5-cathy-chatterbox' and extra == 'extra-5-cathy-qwen') or (sys_platform == 'win32' and extra == 'extra-5-cathy-fish' and extra == 'extra-5-cathy-qwen') or (sys_platform == 'emscripten' and extra != 'extra-5-cathy-chatterbox' and extra != 'extra-5-cathy-fish' and extra != 'extra-5-cathy-qwen') or (sys_platform == 'win32' and extra != 'extra-5-cathy-chatterbox' and extra != 'extra-5-cathy-fish' and extra != 'extra-5-cathy-qwen')" },
+    { name = "setuptools", marker = "(sys_platform != 'emscripten' and sys_platform != 'win32') or (sys_platform == 'emscripten' and extra == 'extra-5-cathy-chatterbox' and extra == 'extra-5-cathy-fish') or (sys_platform == 'emscripten' and extra == 'extra-5-cathy-chatterbox' and extra == 'extra-5-cathy-qwen') or (sys_platform == 'emscripten' and extra == 'extra-5-cathy-fish' and extra == 'extra-5-cathy-qwen') or (sys_platform == 'win32' and extra == 'extra-5-cathy-chatterbox' and extra == 'extra-5-cathy-fish') or (sys_platform == 'win32' and extra == 'extra-5-cathy-chatterbox' and extra == 'extra-5-cathy-qwen') or (sys_platform == 'win32' and extra == 'extra-5-cathy-fish' and extra == 'extra-5-cathy-qwen') or (sys_platform == 'emscripten' and extra != 'extra-5-cathy-chatterbox' and extra != 'extra-5-cathy-fish' and extra != 'extra-5-cathy-qwen')" },
 ]
 wheels = [
     { url = "https://files.pythonhosted.org/packages/d0/66/b1eb52839f563623d185f0927eb3530ee4d5ffe9d377cdaf5346b306689e/triton-3.4.0-cp312-cp312-manylinux_2_27_x86_64.manylinux_2_28_x86_64.whl", hash = "sha256:31c1d84a5c0ec2c0f8e8a072d7fd150cab84a9c239eaddc6706c081bfae4eb04", size = 155560068, upload-time = "2025-07-30T19:58:37.081Z" },
