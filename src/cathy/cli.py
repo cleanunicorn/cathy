@@ -429,9 +429,21 @@ def delegate(engine: str, argv: list[str]) -> None:
     print(f"Engine {engine!r} runs in its own environment (first use downloads it)...")
     result = subprocess.run(
         delegate_cmd(engine) + ["cathy", *argv],
-        env={**os.environ, "CATHY_DELEGATED": "1"},
+        env={**os.environ, "CATHY_DELEGATED": "1", **delegate_env()},
     )
     sys.exit(result.returncode)
+
+
+def delegate_env() -> dict[str, str]:
+    """Extra environment for delegated uv invocations.
+
+    Mirrors the --index-strategy flag as an env var: some uv setups (an
+    ambient UV_INDEX, older versions) otherwise resolve the pytorch indexes
+    first-match and can't see packages that only exist on PyPI.
+    """
+    if sys.platform == "win32":
+        return {"UV_INDEX_STRATEGY": "unsafe-best-match"}
+    return {}
 
 
 def delegate_cmd(engine: str) -> list[str]:
@@ -444,8 +456,9 @@ def delegate_cmd(engine: str) -> list[str]:
         cmd = ["uv", "tool", "run", "--python", "3.12"]
         if sys.platform == "win32":
             # PyPI torch is CPU-only on Windows; CUDA wheels live on the
-            # pytorch.org index
+            # pytorch.org indexes (cu126 covers chatterbox's torch 2.6 pin)
             cmd += ["--index", "https://download.pytorch.org/whl/cu128"]
+            cmd += ["--index", "https://download.pytorch.org/whl/cu126"]
             cmd += ["--index-strategy", "unsafe-best-match"]
         return cmd + ["--from", engine_spec(engine)]
     # A local CATHY_SOURCE is a development tree: run it as a project so the
@@ -482,9 +495,12 @@ def setup(argv: list[str]) -> None:
             # --refresh so `cathy setup` after an upgrade also updates the
             # cached engine environments to the latest cathy
             cmd.insert(3, "--refresh")
+        import os
+
         result = subprocess.run(
             cmd + ["cathy", "--list-voices"],
             stdout=subprocess.DEVNULL,
+            env={**os.environ, **delegate_env()},
         )
         if result.returncode != 0:
             sys.exit(f"error: setup of {engine!r} failed")
