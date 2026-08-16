@@ -8,14 +8,20 @@ authors = [
 ]
 requires-python = ">=3.12"
 dependencies = [
-    "beautifulsoup4>=4.15.0",
-    "ebooklib>=0.20",
+    "beautifulsoup4>=4.12",
+    "ebooklib>=0.19",
     "kokoro>=0.9.4",
-    "mobi>=0.4.1",
+    "mobi>=0.4",
+    "numpy>=1.26",
     "soundfile>=0.14.0",
-    "torch>=2.11.0",
+    "torch>=2.8.0",
     "tqdm>=4.70.0",
 ]
+
+[project.optional-dependencies]
+qwen = ["qwen-tts>=0.1.1"]
+chatterbox = ["chatterbox-tts"]
+fish = ["fish-speech"]
 
 [project.scripts]
 cathy = "cathy:main"
@@ -27,6 +33,31 @@ explicit = true
 
 [tool.uv.sources]
 torch = { index = "pytorch-cu128" }
+torchaudio = { index = "pytorch-cu128" }
+fish-speech = { git = "https://github.com/fishaudio/fish-speech", rev = "ec8bf2b343a5d601d77fe2ae5008bdc6b53034f5" }
+# PyPI chatterbox-tts predates Chatterbox-Nano; nano shipped on git only
+chatterbox-tts = { git = "https://github.com/resemble-ai/chatterbox", rev = "5de7a54aa4e5e2baadb0182dde554908b48b85c2" }
+
+[tool.uv]
+# The engine extras pin mutually incompatible torch/transformers versions, so
+# they are mutually exclusive environments: uv run --extra qwen cathy ...
+conflicts = [
+    [
+        { extra = "qwen" },
+        { extra = "chatterbox" },
+        { extra = "fish" },
+    ],
+]
+# chatterbox-tts pins torch==2.6.0 (absent from the cu128 index) and the
+# S1-era fish-speech predates torch 2.8; one uniform torch keeps every
+# environment on a wheel that works with this GPU driver.
+override-dependencies = [
+    "torch==2.8.0",
+    "torchaudio==2.8.0",
+    "protobuf>=3.20.0,<6.0.0",
+    # newer tensorboard ships protobuf-6 gencode, incompatible with the cap above
+    "tensorboard>=2.14.1,<2.20",
+]
 
 [build-system]
 requires = ["uv_build>=0.10.2,<0.11.0"]

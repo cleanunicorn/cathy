@@ -1,15 +1,17 @@
 # cathy
 
 Turn any text file into narrated audio, fully locally. No cloud, no API keys —
-synthesis runs on your own GPU (or CPU) using [Kokoro-82M](https://huggingface.co/hexgrad/Kokoro-82M),
-an 82M-parameter model that ranks near the top of the TTS Arena leaderboard.
+synthesis runs on your own GPU (or CPU). Four engines are supported, with
+[Kokoro-82M](https://huggingface.co/hexgrad/Kokoro-82M) as the default: it
+ranks near the top of the TTS Arena leaderboard and is fast enough to narrate
+a whole book in minutes.
 
 ## Requirements
 
 - Python 3.12+ managed via [uv](https://docs.astral.sh/uv/)
 - `espeak-ng` (phonemizer backend): `sudo apt install espeak-ng`
 - `ffmpeg` (only for non-wav output formats)
-- NVIDIA GPU recommended (~2–3 GB VRAM); falls back to CPU automatically
+- NVIDIA GPU recommended (~2–3 GB VRAM for Kokoro); falls back to CPU
 
 ## Usage
 
@@ -37,21 +39,45 @@ markdown `#`/`##` headings (plain text). Writing to `.m4b` or `.m4a` embeds
 them as real chapter markers, so audiobook players show a chapter list and
 remember your position. Other formats (mp3, wav) get one continuous stream.
 
-## Performance
+## Engines
 
-On an RTX 3080, synthesis runs at roughly 10–30× real time — about an hour of
-audio in a few minutes.
+Each non-default engine lives in its own dependency environment (their pinned
+torch/transformers versions conflict), selected with `uv run --extra <name>`:
+
+```sh
+uv run cathy book.mobi -o book.m4b                              # kokoro (default)
+uv run --extra qwen cathy book.txt -e qwen -v Ryan
+uv run --extra chatterbox cathy book.txt -e chatterbox -v me.wav
+uv run --extra fish cathy book.txt -e fish -v female
+```
+
+| Engine | Model | Speed (RTX 3080) | Voices | License |
+|---|---|---|---|---|
+| `kokoro` | Kokoro-82M | ~30× real time | presets + weighted blends | Apache-2.0 |
+| `qwen` | Qwen3-TTS-0.6B-CustomVoice | ~real time | 9 preset speakers | Apache-2.0 |
+| `chatterbox` | Chatterbox-Nano (110M) | ~10× real time | clones a reference .wav | MIT |
+| `fish` | OpenAudio S1-mini (0.5B) | ~real time | clones a reference .wav | CC-BY-NC-SA (non-commercial) |
+
+`-v male` / `-v female` works on every engine. For the cloning engines
+(chatterbox, fish) those generate a reference clip with Kokoro; pass a path to
+a ~10 s `.wav` of any speaker to clone that voice instead.
+
+Kokoro is the right default for whole books; the others trade speed for
+expressiveness or cloning. Switching engines swaps the virtualenv (a few GB of
+packages), so expect the first `--extra` run to take a while.
 
 ## Notes
 
-- Torch is pinned to the CUDA 12.8 wheel index in `pyproject.toml`; the
-  default cu130 build hits a cuDNN version mismatch (as of torch 2.13).
-- Voices are Kokoro's built-in presets; the first letter selects the language
-  (`a` American, `b` British English). Blending averages the voices' style
-  vectors — `af_heart:2,af_bella:1` is two parts heart, one part bella — which
-  lets you tune a narrator between presets. No voice cloning — if you need a
-  custom voice, [Chatterbox](https://huggingface.co/ResembleAI/chatterbox) is
-  the natural companion model.
+- All environments share torch 2.8.0 from the CUDA 12.8 wheel index (pinned in
+  `pyproject.toml`): the default cu130 build hits a cuDNN version mismatch,
+  chatterbox pins torch 2.6, and fish predates 2.8 — one override keeps every
+  engine on a working wheel.
+- Kokoro voice prefixes select the language (`a` American, `b` British
+  English). Blending averages style vectors — `af_heart:2,af_bella:1` is two
+  parts heart, one part bella — letting you tune a narrator between presets.
 - Cadence is audiobook-style: segment edges are trimmed of stray silence, then
   explicit pauses are inserted — 0.15 s between sentences of long paragraphs,
   0.55 s between paragraphs, 1 s after a chapter heading.
+- fish-speech and chatterbox are installed from pinned git commits: the last
+  S1-era fish-speech commit (S2 needs 24 GB VRAM), and the Chatterbox-Nano
+  release (absent from PyPI).

@@ -6,29 +6,9 @@ import sys
 import tempfile
 from pathlib import Path
 
-# Curated subset of Kokoro's built-in voices. Prefix encodes language/gender:
-# a=American, b=British English; f=female, m=male.
-VOICES = {
-    "af_heart": "American female (highest rated)",
-    "af_bella": "American female, warm",
-    "af_nicole": "American female, soft-spoken",
-    "am_michael": "American male",
-    "am_fenrir": "American male, deep",
-    "bf_emma": "British female",
-    "bm_george": "British male",
-    "bm_fable": "British male, narrator",
-}
+from cathy.engines import ENGINES, KOKORO_ALIASES, KOKORO_VOICES, QWEN_SPEAKERS
 
-# Descriptive names for people who don't want to browse Kokoro presets.
-VOICE_ALIASES = {
-    "male": "am_michael:2,am_fenrir:1",
-    "female": "af_heart",
-    "british-male": "bm_george:2,bm_fable:1",
-    "british-female": "bf_emma",
-}
-
-SAMPLE_RATE = 24_000
-# Graded pauses, audiobook-style: short between sentences (Kokoro chunk
+# Graded pauses, audiobook-style: short between sentences (engine chunk
 # boundaries fall on sentence ends), longer between paragraphs, longest after
 # a chapter heading.
 SENTENCE_PAUSE = 0.15
@@ -57,15 +37,28 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
         ".m4b/.m4a outputs include chapter markers",
     )
     parser.add_argument(
-        "-v",
-        "--voice",
-        default="male",
-        help="a descriptive voice (male, female, british-male, british-female), "
-        "a Kokoro voice name, or a blend like 'af_heart:2,af_bella:1' "
-        "(see --list-voices); default: male",
+        "-e",
+        "--engine",
+        choices=ENGINES,
+        default="kokoro",
+        help="TTS engine; kokoro (default) is ~50x faster than the others and "
+        "the right choice for whole books. qwen/chatterbox/fish need their "
+        "extra installed: uv run --extra <engine> cathy ...",
     )
     parser.add_argument(
-        "-s", "--speed", type=float, default=1.0, help="speech speed; default: 1.0"
+        "-v",
+        "--voice",
+        help="'male' (default) or 'female' works on every engine. Kokoro also "
+        "takes preset names and blends like 'af_heart:2,af_bella:1'; qwen "
+        "takes speaker names; chatterbox/fish take a reference .wav to clone "
+        "(see --list-voices)",
+    )
+    parser.add_argument(
+        "-s",
+        "--speed",
+        type=float,
+        default=1.0,
+        help="speech speed (kokoro only); default: 1.0",
     )
     parser.add_argument(
         "--cpu", action="store_true", help="force CPU even if a GPU is available"
@@ -77,6 +70,20 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     if not args.list_voices and args.input is None:
         parser.error("input file is required (or use --list-voices)")
     return args
+
+
+def list_voices() -> None:
+    print("Every engine accepts -v male (default) or -v female.\n")
+    print("kokoro: aliases expand to presets/blends; presets are mixable")
+    for name, target in KOKORO_ALIASES.items():
+        print(f"  {name:16} = {target}")
+    for name, description in KOKORO_VOICES.items():
+        print(f"  {name:16} {description}")
+    print("\nqwen: preset speakers")
+    for name, description in QWEN_SPEAKERS.items():
+        print(f"  {name:16} {description}")
+    print("\nchatterbox, fish: pass a reference .wav to clone that voice;")
+    print("male/female use a generated reference clip.")
 
 
 HEADING_TAGS = ["h1", "h2", "h3", "h4"]
@@ -190,79 +197,37 @@ def load_chapters(path: Path) -> list[Chapter]:
     ]
 
 
-def resolve_voice(pipeline, spec: str):
-    """Resolve a voice spec, supporting weighted blends like 'af_heart:2,af_bella:1'.
-
-    Plain names and unweighted blends ('af_heart,af_bella') are passed through
-    to Kokoro, which averages them; weights need the tensor mix done here.
-    """
-    if ":" not in spec:
-        return spec
-
-    import torch
-
-    names, weights = [], []
-    for part in spec.split(","):
-        name, _, weight = part.partition(":")
-        names.append(name.strip())
-        weights.append(float(weight or 1))
-    packs = torch.stack([pipeline.load_single_voice(n) for n in names])
-    w = torch.tensor(weights, dtype=packs.dtype) / sum(weights)
-    return torch.sum(packs * w.reshape(-1, *[1] * (packs.dim() - 1)), dim=0)
-
-
-def trim_edges(audio, threshold: float = 2e-3):
+def trim_edges(audio, sr: int, threshold: float = 2e-3):
     """Trim near-silence off both ends of a segment, keeping a little padding.
 
-    Kokoro segments carry variable amounts of edge silence; trimming it and
-    inserting explicit pauses gives the narration a uniform rhythm.
+    Engines emit variable amounts of edge silence; trimming it and inserting
+    explicit pauses gives the narration a uniform rhythm.
     """
     import numpy as np
 
     loud = np.flatnonzero(np.abs(audio) > threshold)
     if loud.size == 0:
         return audio
-    keep = int(SAMPLE_RATE * EDGE_KEEP_SECONDS)
+    keep = int(sr * EDGE_KEEP_SECONDS)
     return audio[max(0, loud[0] - keep) : min(len(audio), loud[-1] + keep)]
 
 
-def narrate(
-    chapters: list[Chapter], voice: str, speed: float, device: str | None, wav_path: Path
-) -> list[tuple[str, float, float]]:
+def narrate(engine, chapters: list[Chapter], wav_path: Path) -> list[tuple[str, float, float]]:
     """Synthesize all chapters into wav_path; return (title, start_s, end_s) marks."""
-    import warnings
-
-    # Keep the console clean: torch warns about internals of Kokoro's model
-    # (LSTM dropout, deprecated weight_norm) that we can do nothing about.
-    warnings.filterwarnings("ignore", category=FutureWarning, module="torch")
-    warnings.filterwarnings("ignore", category=UserWarning, module="torch")
-
     import numpy as np
     import soundfile as sf
-    from loguru import logger
-
-    logger.disable("kokoro")
-    logger.disable("misaki")
-
-    from kokoro import KPipeline
     from tqdm import tqdm
 
-    lang_code = voice[0]  # Kokoro convention: voice prefix selects the language
-    pipeline = KPipeline(
-        lang_code=lang_code, repo_id="hexgrad/Kokoro-82M", device=device
-    )
-    voice = resolve_voice(pipeline, voice)
+    sr = engine.sr
 
     def silence(seconds: float):
-        return np.zeros(int(SAMPLE_RATE * seconds), dtype=np.float32)
+        return np.zeros(int(sr * seconds), dtype=np.float32)
 
     marks = []
     written = 0
     total = sum(len(paragraphs) for _, paragraphs in chapters)
     with (
-        sf.SoundFile(
-            wav_path, mode="w", samplerate=SAMPLE_RATE, channels=1, format="WAV"
-        ) as f,
+        sf.SoundFile(wav_path, mode="w", samplerate=sr, channels=1, format="WAV") as f,
         tqdm(total=total, unit="para", desc="Narrating") as progress,
     ):
         def emit(chunk) -> None:
@@ -274,17 +239,17 @@ def narrate(
             start = written
             for i, paragraph in enumerate(paragraphs):
                 first = True
-                for _, _, audio in pipeline(paragraph, voice=voice, speed=speed):
+                for audio in engine.paragraph(paragraph):
                     if not first:
                         emit(silence(SENTENCE_PAUSE))
-                    emit(trim_edges(audio.numpy()))
+                    emit(trim_edges(audio, sr))
                     first = False
                 # A chapter's first paragraph is usually its heading; give it
                 # the longer, audiobook-style pause.
                 is_heading = i == 0 and paragraph == title
                 emit(silence(HEADING_PAUSE if is_heading else PARAGRAPH_PAUSE))
                 progress.update(1)
-            marks.append((title, start / SAMPLE_RATE, written / SAMPLE_RATE))
+            marks.append((title, start / sr, written / sr))
     return marks
 
 
@@ -338,12 +303,7 @@ def main(argv: list[str] | None = None) -> None:
     args = parse_args(argv)
 
     if args.list_voices:
-        print("Voice options (-v), default: male")
-        for name, target in VOICE_ALIASES.items():
-            print(f"  {name:16} = {target}")
-        print("\nKokoro presets (also mixable, e.g. -v af_heart:2,af_bella:1):")
-        for name, description in VOICES.items():
-            print(f"  {name:16} {description}")
+        list_voices()
         return
 
     if not args.input.exists():
@@ -351,25 +311,30 @@ def main(argv: list[str] | None = None) -> None:
 
     import torch
 
+    from cathy.engines import build_engine
+
     device = "cpu" if args.cpu else ("cuda" if torch.cuda.is_available() else "cpu")
-    args.voice = VOICE_ALIASES.get(args.voice, args.voice)
     output = args.output or args.input.with_suffix(".wav")
     chapters = load_chapters(args.input)
     if not chapters:
         sys.exit("error: input file contains no text")
 
+    if args.speed != 1.0 and args.engine != "kokoro":
+        print("note: --speed only applies to the kokoro engine; ignoring")
+
     paragraph_count = sum(len(p) for _, p in chapters)
     print(
-        f"Device: {device} | Voice: {args.voice} | "
+        f"Engine: {args.engine} | Device: {device} | Voice: {args.voice or 'male'} | "
         f"Chapters: {len(chapters)} | Paragraphs: {paragraph_count}"
     )
+    engine = build_engine(args.engine, args.voice, args.speed, device)
 
     if output.suffix.lower() == ".wav":
-        narrate(chapters, args.voice, args.speed, device, output)
+        narrate(engine, chapters, output)
     else:
         wav_path = Path(tempfile.mkstemp(suffix=".wav")[1])
         try:
-            marks = narrate(chapters, args.voice, args.speed, device, wav_path)
+            marks = narrate(engine, chapters, wav_path)
             convert(wav_path, output, marks)
         finally:
             wav_path.unlink(missing_ok=True)
