@@ -1,0 +1,30 @@
+[project]
+name = "cathy"
+version = "0.1.0"
+description = "Fully local text-to-speech narration (Kokoro-82M, GPU-accelerated)"
+readme = "README.md"
+authors = [
+    { name = "Daniel Luca", email = "lucadanielcostin@gmail.com" }
+]
+requires-python = ">=3.12"
+dependencies = [
+    "kokoro>=0.9.4",
+    "soundfile>=0.14.0",
+    "torch>=2.11.0",
+    "tqdm>=4.70.0",
+]
+
+[project.scripts]
+cathy = "cathy:main"
+
+[[tool.uv.index]]
+name = "pytorch-cu128"
+url = "https://download.pytorch.org/whl/cu128"
+explicit = true
+
+[tool.uv.sources]
+torch = { index = "pytorch-cu128" }
+
+[build-system]
+requires = ["uv_build>=0.10.2,<0.11.0"]
+build-backend = "uv_build"
