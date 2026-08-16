@@ -284,7 +284,11 @@ def ffmetadata(marks: list[tuple[str, float, float]]) -> str:
 
 def convert(wav_path: Path, output: Path, marks: list[tuple[str, float, float]]) -> None:
     """Convert the intermediate wav to the requested container via ffmpeg."""
-    cmd = ["ffmpeg", "-y", "-loglevel", "error", "-i", str(wav_path)]
+    from tqdm import tqdm
+
+    cmd = ["ffmpeg", "-y", "-loglevel", "error", "-nostats", "-progress", "pipe:1"]
+    cmd += ["-i", str(wav_path)]
+    duration = marks[-1][2] if marks else 0.0
     with tempfile.NamedTemporaryFile("w", suffix=".txt", delete_on_close=False) as meta:
         if output.suffix.lower() in CHAPTER_FORMATS:
             meta.write(ffmetadata(marks))
@@ -292,7 +296,21 @@ def convert(wav_path: Path, output: Path, marks: list[tuple[str, float, float]])
             cmd += ["-f", "ffmetadata", "-i", meta.name, "-map_metadata", "1"]
             cmd += ["-map_chapters", "1", "-c:a", "aac", "-b:a", "96k", "-f", "ipod"]
         cmd.append(str(output))
-        subprocess.run(cmd, check=True)
+        proc = subprocess.Popen(cmd, stdout=subprocess.PIPE, text=True)
+        with tqdm(
+            total=round(duration), unit="s", desc=f"Encoding {output.name}"
+        ) as progress:
+            for line in proc.stdout:
+                # ffmpeg's -progress emits key=value lines; out_time_us is
+                # microseconds encoded so far ("N/A" until the first frame).
+                key, _, value = line.strip().partition("=")
+                if key in ("out_time_us", "out_time_ms") and value.isdigit():
+                    progress.n = min(round(duration), round(int(value) / 1_000_000))
+                    progress.refresh()
+            progress.n = progress.total
+            progress.refresh()
+        if proc.wait() != 0:
+            sys.exit(f"error: ffmpeg failed converting to {output}")
 
 
 def main(argv: list[str] | None = None) -> None:
