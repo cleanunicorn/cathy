@@ -164,6 +164,13 @@ before first use.
 (chatterbox, fish) those generate a reference clip with Kokoro; pass a path to
 a ~10 s `.wav` of any speaker to clone that voice instead.
 
+Languages other than English: Kokoro ships Spanish, French, Italian,
+Portuguese, and Hindi voices — the voice prefix picks the language
+(`cathy libro.epub -v ef_dora`; see `cathy voices`). Qwen reads many
+languages with any speaker: pick one with `-l` (`cathy livre.txt -e qwen -l
+French`). Kokoro's Japanese/Chinese presets need the `misaki[ja]`/`misaki[zh]`
+extras, which cathy doesn't install by default.
+
 Kokoro is the right default for whole books; the others trade speed for
 expressiveness or cloning. Each engine environment is a few GB on disk (uv
 caches them; `uv cache clean` reclaims the space).

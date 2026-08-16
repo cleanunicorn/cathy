@@ -11,6 +11,7 @@ from pathlib import Path
 from cathy.engines import (
     ENGINES,
     KOKORO_ALIASES,
+    KOKORO_INTL,
     KOKORO_VOICES,
     QWEN_SPEAKERS,
     engine_available,
@@ -112,6 +113,13 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
         "(see --list-voices)",
     )
     parser.add_argument(
+        "-l",
+        "--language",
+        help="narration language for the qwen engine, e.g. Spanish, Japanese "
+        "(default: English). Kokoro picks its language from the voice prefix "
+        "instead — see --list-voices",
+    )
+    parser.add_argument(
         "-s",
         "--speed",
         type=float,
@@ -160,7 +168,10 @@ def list_voices() -> None:
         print(f"  {name:16} = {target}")
     for name, description in KOKORO_VOICES.items():
         print(f"  {name:16} {description}")
-    print("\nqwen: preset speakers")
+    print("\nkokoro, other languages (the voice prefix picks the language):")
+    for name, description in KOKORO_INTL.items():
+        print(f"  {name:16} {description}")
+    print("\nqwen: preset speakers; pick the text language with -l/--language")
     for name, description in QWEN_SPEAKERS.items():
         print(f"  {name:16} {description}")
     print("\nchatterbox, fish: pass a reference .wav to clone that voice;")
@@ -867,14 +878,15 @@ def main(argv: list[str] | None = None) -> None:
         f"Chapters: {len(chapters)} | Paragraphs: {paragraph_count}"
     )
     engine = build_engine(
-        args.engine, args.voice, args.speed if native_speed else 1.0, device
+        args.engine, args.voice, args.speed if native_speed else 1.0, device,
+        args.language,
     )
 
     # Per-chapter checkpoints: an interrupted run resumes from here. The
     # fingerprint covers everything that changes the audio itself.
     workdir = output.parent / f"{output.name}.partial"
     fingerprint = "|".join(
-        [args.engine, args.voice or "male",
+        [args.engine, args.voice or "male", args.language or "",
          str(args.speed if native_speed else 1.0), str(engine.sr)]
     )
     try:

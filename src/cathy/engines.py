@@ -40,6 +40,21 @@ KOKORO_ALIASES = {
     "british-female": "bf_emma",
 }
 
+# Non-English Kokoro presets; the prefix picks the language and its G2P runs
+# through espeak-ng, which cathy already requires. (Japanese/Chinese presets
+# exist upstream too, but need the misaki[ja]/misaki[zh] extras.)
+KOKORO_INTL = {
+    "ef_dora": "Spanish female",
+    "em_alex": "Spanish male",
+    "ff_siwis": "French female",
+    "hf_alpha": "Hindi female",
+    "hm_omega": "Hindi male",
+    "if_sara": "Italian female",
+    "im_nicola": "Italian male",
+    "pf_dora": "Portuguese (BR) female",
+    "pm_alex": "Portuguese (BR) male",
+}
+
 QWEN_SPEAKERS = {
     "Ryan": "male, dynamic",
     "Aiden": "male, casual American",
@@ -127,7 +142,9 @@ class KokoroEngine:
 
     sr = 24_000
 
-    def __init__(self, voice: str, speed: float, device: str):
+    def __init__(self, voice: str, speed: float, device: str, language: str | None = None):
+        # Kokoro's language follows the voice prefix (see KOKORO_INTL);
+        # --language is a qwen option.
         _quiet()
         from kokoro import KPipeline
 
@@ -163,7 +180,8 @@ class KokoroEngine:
 class QwenEngine:
     """Qwen3-TTS-0.6B-CustomVoice: expressive preset speakers, ~real-time."""
 
-    def __init__(self, voice: str, speed: float, device: str):
+    def __init__(self, voice: str, speed: float, device: str, language: str | None = None):
+        self.language = language or "English"
         _quiet()
         import shutil
 
@@ -194,7 +212,7 @@ class QwenEngine:
         return _hushed(
             self.model.generate_custom_voice,
             text=text,
-            language="English",
+            language=self.language,
             speaker=self.voice,
         )
 
@@ -234,7 +252,7 @@ class ClonedVoiceMixin:
 class ChatterboxEngine(ClonedVoiceMixin):
     """Chatterbox-Nano: 110M cloning model, expressive, MIT-licensed."""
 
-    def __init__(self, voice: str, speed: float, device: str):
+    def __init__(self, voice: str, speed: float, device: str, language: str | None = None):
         _quiet()
         try:
             from chatterbox.tts_turbo import ChatterboxTurboTTS
@@ -256,7 +274,7 @@ class ChatterboxEngine(ClonedVoiceMixin):
 class FishEngine(ClonedVoiceMixin):
     """Fish Audio OpenAudio S1-mini: 0.5B cloning model, research license."""
 
-    def __init__(self, voice: str, speed: float, device: str):
+    def __init__(self, voice: str, speed: float, device: str, language: str | None = None):
         _quiet()
         try:
             import fish_speech
@@ -364,11 +382,17 @@ class FishEngine(ClonedVoiceMixin):
         yield from segments
 
 
-def build_engine(name: str, voice: str | None, speed: float, device: str):
+def build_engine(
+    name: str,
+    voice: str | None,
+    speed: float,
+    device: str,
+    language: str | None = None,
+):
     classes = {
         "kokoro": KokoroEngine,
         "qwen": QwenEngine,
         "chatterbox": ChatterboxEngine,
         "fish": FishEngine,
     }
-    return classes[name](voice or "male", speed, device)
+    return classes[name](voice or "male", speed, device, language)
