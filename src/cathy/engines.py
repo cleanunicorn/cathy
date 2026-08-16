@@ -86,6 +86,10 @@ def _quiet() -> None:
 
     warnings.filterwarnings("ignore", category=FutureWarning)
     warnings.filterwarnings("ignore", category=UserWarning)
+    warnings.filterwarnings("ignore", category=DeprecationWarning)
+    # descript-audiotools (fish) has docstrings with invalid escape sequences,
+    # which warn on first import in a fresh environment
+    warnings.filterwarnings("ignore", category=SyntaxWarning)
 
     try:
         from loguru import logger
@@ -104,13 +108,18 @@ def _quiet() -> None:
 
 
 def _hushed(fn, *args, **kwargs):
-    """Run fn with stdout swallowed; engines print progress chatter we already
-    surface through our own progress bar (which writes to stderr)."""
+    """Run fn with stdout/stderr swallowed — engines emit chatter and their own
+    tqdm bars that fight our progress bar. Replayed if fn actually fails."""
     import io
-    from contextlib import redirect_stdout
+    from contextlib import redirect_stderr, redirect_stdout
 
-    with redirect_stdout(io.StringIO()):
-        return fn(*args, **kwargs)
+    buffer = io.StringIO()
+    try:
+        with redirect_stdout(buffer), redirect_stderr(buffer):
+            return fn(*args, **kwargs)
+    except Exception:
+        sys.stderr.write(buffer.getvalue())
+        raise
 
 
 class KokoroEngine:
@@ -278,11 +287,23 @@ class FishEngine(ClonedVoiceMixin):
         llama_queue = launch_thread_safe_queue(
             checkpoint_path=checkpoints, device=device, precision=precision, compile=False
         )
-        decoder = load_decoder_model(
-            config_name="modded_dac_vq",
-            checkpoint_path=checkpoints / "codec.pth",
-            device=device,
-        )
+        # The codec loader prints stray zero-byte tqdm bars ("Reconstruction
+        # complete", "Download complete") to stderr; swallow them, but replay
+        # everything if loading actually fails.
+        import io
+        from contextlib import redirect_stderr, redirect_stdout
+
+        buffer = io.StringIO()
+        try:
+            with redirect_stdout(buffer), redirect_stderr(buffer):
+                decoder = load_decoder_model(
+                    config_name="modded_dac_vq",
+                    checkpoint_path=checkpoints / "codec.pth",
+                    device=device,
+                )
+        except Exception:
+            sys.stderr.write(buffer.getvalue())
+            raise
         self.engine = TTSInferenceEngine(
             llama_queue=llama_queue,
             decoder_model=decoder,
