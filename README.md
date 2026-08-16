@@ -98,9 +98,14 @@ cathy convert book.wav book.m4b   # convert existing audio, no re-narration
 cathy convert book.wav fast.m4b -s 1.25   # re-time while converting
 ```
 
-Narrating to `.wav` also writes `book.chapters.txt` next to it, so a later
-`cathy convert book.wav book.m4b` still embeds the chapter markers. Convert
-works for any ffmpeg-supported output (mp3, flac, ...).
+Ebook narration carries the book's title, author, and cover art into
+`.m4b`/`.m4a` output, so audiobook players show the real book, not a blank
+tile.
+
+Narrating to `.wav` also writes `book.chapters.txt` (chapters plus title and
+author tags) and `book.cover.jpg`/`.png` next to it, so a later
+`cathy convert book.wav book.m4b` still embeds everything. Convert works for
+any ffmpeg-supported output (mp3, flac, ...).
 
 The first run downloads the model (~330 MB) from Hugging Face; everything after
 that is offline.

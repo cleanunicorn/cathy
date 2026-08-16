@@ -3,9 +3,11 @@
 from pathlib import Path
 
 from cathy.cli import (
+    BookInfo,
     atempo_chain,
     chapter_hash,
     concat_chapters,
+    epub_book,
     ffmetadata,
     html_to_chapters,
     scale_metadata,
@@ -42,6 +44,50 @@ class TestChapterExtraction:
         # non-footnote superscripts survive
         chapters = html_to_chapters("<p>E = mc<sup>squared</sup></p>")
         assert chapters == [("", ["E = mc squared"])]
+
+
+class TestBookMetadata:
+    def test_epub_title_author_cover(self, tmp_path: Path):
+        import base64
+
+        from ebooklib import epub
+
+        png = base64.b64decode(
+            "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8"
+            "z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg=="
+        )
+        book = epub.EpubBook()
+        book.set_identifier("t")
+        book.set_title("A Title")
+        book.set_language("en")
+        book.add_author("An Author")
+        book.set_cover("cover.png", png, create_page=False)
+        item = epub.EpubHtml(title="One", file_name="ch1.xhtml", lang="en")
+        item.content = "<html><body><h1>One</h1><p>Body text.</p></body></html>"
+        book.add_item(item)
+        book.spine = [item]
+        book.add_item(epub.EpubNcx())
+        book.add_item(epub.EpubNav())
+        path = tmp_path / "b.epub"
+        epub.write_epub(str(path), book)
+
+        info, chapters = epub_book(path)
+        assert info.title == "A Title"
+        assert info.author == "An Author"
+        assert info.cover == png
+        assert info.cover_ext == ".png"
+        assert chapters == [("One", ["One", "Body text."])]
+
+    def test_ffmetadata_global_tags(self):
+        info = BookInfo(title="A=Title", author="Someone")
+        text = ffmetadata([("One", 0.0, 1.0)], info)
+        head = text.split("[CHAPTER]")[0]
+        assert "title=A\\=Title" in head
+        assert "album=A\\=Title" in head
+        assert "artist=Someone" in head
+
+    def test_ffmetadata_no_info(self):
+        assert ffmetadata([("One", 0.0, 1.0)]).startswith(";FFMETADATA1\n[CHAPTER]")
 
 
 class TestSplitSentences:

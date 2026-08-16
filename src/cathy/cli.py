@@ -5,6 +5,7 @@ import re
 import subprocess
 import sys
 import tempfile
+import typing
 from pathlib import Path
 
 from cathy.engines import (
@@ -32,6 +33,15 @@ EBOOK_FORMATS = (".mobi", ".azw", ".azw3", ".epub")
 
 # A chapter is (title, paragraphs). Titles become m4b chapter markers.
 Chapter = tuple[str, list[str]]
+
+
+class BookInfo(typing.NamedTuple):
+    """Book-level metadata embedded in the output (m4b tags, cover art)."""
+
+    title: str = ""
+    author: str = ""
+    cover: bytes | None = None
+    cover_ext: str = ".jpg"
 
 
 EPILOG = """\
@@ -183,8 +193,41 @@ def html_to_chapters(html: str) -> list[Chapter]:
     return chapters
 
 
-def epub_to_chapters(path: Path) -> list[Chapter]:
-    """Extract chapters from an epub, following the book's spine order."""
+def epub_info(book, fallback_title: str) -> BookInfo:
+    """Pull title, author, and cover art out of a parsed epub."""
+    import ebooklib
+
+    def dc(name: str) -> str:
+        values = book.get_metadata("DC", name)
+        return values[0][0].strip() if values and values[0][0] else ""
+
+    cover = None
+    for item in book.get_items_of_type(ebooklib.ITEM_COVER):
+        cover = item
+        break
+    if cover is None:
+        # older epubs mark the cover with an OPF <meta name="cover"> id
+        for _, attrs in book.get_metadata("OPF", "cover"):
+            item = book.get_item_with_id(attrs.get("content", ""))
+            if item is not None:
+                cover = item
+                break
+    if cover is None:
+        for item in book.get_items_of_type(ebooklib.ITEM_IMAGE):
+            if "cover" in item.file_name.lower():
+                cover = item
+                break
+    ext = ".png" if cover and cover.media_type == "image/png" else ".jpg"
+    return BookInfo(
+        title=dc("title") or fallback_title,
+        author=dc("creator"),
+        cover=cover.get_content() if cover else None,
+        cover_ext=ext,
+    )
+
+
+def epub_book(path: Path) -> tuple[BookInfo, list[Chapter]]:
+    """Extract metadata and chapters from an epub, in spine order."""
     from ebooklib import ITEM_DOCUMENT, epub
 
     book = epub.read_epub(str(path), options={"ignore_ncx": True})
@@ -200,11 +243,11 @@ def epub_to_chapters(path: Path) -> list[Chapter]:
         heading = next((b for b in blocks if b.name in HEADING_TAGS), None)
         title = heading.get_text(" ", strip=True) if heading else ""
         chapters.append((title, paragraphs))
-    return chapters
+    return epub_info(book, path.stem), chapters
 
 
-def mobi_to_chapters(path: Path) -> list[Chapter]:
-    """Unpack a mobi/azw file and extract chapters from whatever is inside."""
+def mobi_book(path: Path) -> tuple[BookInfo, list[Chapter]]:
+    """Unpack a mobi/azw file and extract metadata/chapters from the inside."""
     import shutil
 
     import mobi
@@ -213,12 +256,16 @@ def mobi_to_chapters(path: Path) -> list[Chapter]:
     try:
         extracted = Path(extracted)
         if extracted.suffix.lower() == ".epub":
-            return epub_to_chapters(extracted)
+            return epub_book(extracted)
         if extracted.suffix.lower() in (".html", ".htm"):
-            return html_to_chapters(
+            chapters = html_to_chapters(
                 extracted.read_text(encoding="utf-8", errors="ignore")
             )
-        return text_to_chapters(extracted.read_text(encoding="utf-8", errors="ignore"))
+        else:
+            chapters = text_to_chapters(
+                extracted.read_text(encoding="utf-8", errors="ignore")
+            )
+        return BookInfo(title=path.stem), chapters
     finally:
         shutil.rmtree(tempdir, ignore_errors=True)
 
@@ -243,15 +290,17 @@ def text_to_chapters(text: str) -> list[Chapter]:
     return chapters
 
 
-def load_chapters(path: Path) -> list[Chapter]:
-    """Read a text/ebook file and return its chapters (titles as found;
+def load_book(path: Path) -> tuple[BookInfo, list[Chapter]]:
+    """Read a text/ebook file: book metadata plus chapters (titles as found;
     untitled chapters are numbered later, after front-matter filtering)."""
     suffix = path.suffix.lower()
     if suffix in (".mobi", ".azw", ".azw3"):
-        return mobi_to_chapters(path)
+        return mobi_book(path)
     if suffix == ".epub":
-        return epub_to_chapters(path)
-    return text_to_chapters(path.read_text(encoding="utf-8"))
+        return epub_book(path)
+    return BookInfo(title=path.stem), text_to_chapters(
+        path.read_text(encoding="utf-8")
+    )
 
 
 def trim_edges(audio, sr: int, threshold: float = 2e-3):
@@ -353,17 +402,27 @@ def concat_chapters(
     return marks
 
 
-def ffmetadata(marks: list[tuple[str, float, float]]) -> str:
-    """Render chapter marks as an ffmpeg metadata file."""
+def ffmetadata(
+    marks: list[tuple[str, float, float]], info: BookInfo | None = None
+) -> str:
+    """Render book tags and chapter marks as an ffmpeg metadata file."""
+
+    def escape(text: str) -> str:
+        return "".join("\\" + c if c in "=;#\\\n" else c for c in text)
+
     lines = [";FFMETADATA1"]
+    if info is not None:
+        if info.title:
+            lines += [f"title={escape(info.title)}", f"album={escape(info.title)}"]
+        if info.author:
+            lines.append(f"artist={escape(info.author)}")
     for title, start, end in marks:
-        escaped = "".join("\\" + c if c in "=;#\\\n" else c for c in title)
         lines += [
             "[CHAPTER]",
             "TIMEBASE=1/1000",
             f"START={int(start * 1000)}",
             f"END={int(end * 1000)}",
-            f"title={escaped}",
+            f"title={escape(title)}",
         ]
     return "\n".join(lines) + "\n"
 
@@ -414,30 +473,42 @@ def convert(
     metadata: str | None,
     duration: float,
     speed: float = 1.0,
+    cover: Path | None = None,
 ) -> None:
     """Convert audio to the requested container via ffmpeg.
 
-    metadata is ffmetadata text with chapter marks; it is embedded when the
-    output container supports chapters (.m4b/.m4a). speed != 1 re-times the
-    audio with the atempo filter (pitch-preserving), chapters included.
+    metadata is ffmetadata text with book tags and chapter marks; it is
+    embedded when the output container supports chapters (.m4b/.m4a), as is
+    the cover image. speed != 1 re-times the audio with the atempo filter
+    (pitch-preserving), chapters included.
     """
     from tqdm import tqdm
 
+    chaptered = output.suffix.lower() in CHAPTER_FORMATS
     metadata = scale_metadata(metadata, speed)
     duration /= speed
     cmd = ["ffmpeg", "-y", "-loglevel", "error", "-nostats", "-progress", "pipe:1"]
     cmd += ["-i", str(wav_path)]
+    inputs = 1
     with tempfile.NamedTemporaryFile("w", suffix=".txt", delete_on_close=False) as meta:
-        if output.suffix.lower() in CHAPTER_FORMATS:
-            if metadata:
-                meta.write(metadata)
-                meta.close()
-                cmd += ["-f", "ffmetadata", "-i", meta.name, "-map_metadata", "1"]
-                cmd += ["-map_chapters", "1"]
+        outopts = []
+        if chaptered and metadata:
+            meta.write(metadata)
+            meta.close()
+            cmd += ["-f", "ffmetadata", "-i", meta.name]
+            outopts += ["-map_metadata", str(inputs), "-map_chapters", str(inputs)]
+            inputs += 1
+        if chaptered and cover is not None:
+            # mjpeg re-encode: the ipod muxer accepts jpeg cover streams
+            cmd += ["-i", str(cover)]
+            outopts += ["-map", "0:a", "-map", f"{inputs}:v", "-c:v", "mjpeg"]
+            outopts += ["-disposition:v:0", "attached_pic"]
+            inputs += 1
         # Output options must come after every -i input
+        cmd += outopts
         if speed != 1.0:
             cmd += ["-filter:a", atempo_chain(speed)]
-        if output.suffix.lower() in CHAPTER_FORMATS:
+        if chaptered:
             cmd += ["-c:a", "aac", "-b:a", "96k", "-f", "ipod"]
         cmd.append(str(output))
         proc = subprocess.Popen(cmd, stdout=subprocess.PIPE, text=True)
@@ -590,6 +661,7 @@ def convert_command(argv: list[str]) -> None:
         sys.exit(f"error: {args.source} not found")
 
     metadata = None
+    cover = None
     sidecar = args.source.with_suffix(".chapters.txt")
     if args.output.suffix.lower() in CHAPTER_FORMATS:
         if sidecar.exists():
@@ -597,7 +669,16 @@ def convert_command(argv: list[str]) -> None:
             print(f"Using chapters from {sidecar}")
         else:
             print(f"note: {sidecar} not found; {args.output.name} will have no chapters")
-    convert(args.source, args.output, metadata, probe_duration(args.source), args.speed)
+        for ext in (".jpg", ".png"):
+            candidate = args.source.with_suffix(f".cover{ext}")
+            if candidate.exists():
+                cover = candidate
+                print(f"Using cover from {candidate}")
+                break
+    convert(
+        args.source, args.output, metadata, probe_duration(args.source),
+        args.speed, cover=cover,
+    )
     print(f"Wrote {args.output}")
 
 
@@ -670,7 +751,7 @@ def main(argv: list[str] | None = None) -> None:
             f"tip: writing plain {output.name}; use `-o {output.stem}.m4b` "
             "for an audiobook with chapter markers"
         )
-    chapters = load_chapters(args.input)
+    info, chapters = load_book(args.input)
     if not args.all:
         chapters, skipped = drop_front_back_matter(chapters)
         if skipped:
@@ -688,6 +769,10 @@ def main(argv: list[str] | None = None) -> None:
     native_speed = args.engine == "kokoro"
     post_speed = 1.0 if native_speed else args.speed
 
+    if info.title:
+        by = f" — {info.author}" if info.author else ""
+        cover_note = " | Cover: yes" if info.cover else ""
+        print(f"Book: {info.title}{by}{cover_note}")
     paragraph_count = sum(len(p) for _, p in chapters)
     print(
         f"Engine: {args.engine} | Device: {device} | Voice: {args.voice or 'male'} | "
@@ -714,24 +799,38 @@ def main(argv: list[str] | None = None) -> None:
         sys.exit(130)
 
     titles = [title for title, _ in chapters]
-    if output.suffix.lower() == ".wav" and post_speed == 1.0:
-        marks = concat_chapters(paths, titles, output, engine.sr)
-        metadata = ffmetadata(marks)
-    else:
-        wav_path = Path(tempfile.mkstemp(suffix=".wav")[1])
-        try:
-            marks = concat_chapters(paths, titles, wav_path, engine.sr)
-            duration = marks[-1][2] if marks else 0.0
-            convert(wav_path, output, ffmetadata(marks), duration, post_speed)
-        finally:
-            wav_path.unlink(missing_ok=True)
-        metadata = scale_metadata(ffmetadata(marks), post_speed)
+    cover_path = None
+    if info.cover:
+        cover_path = Path(tempfile.mkstemp(suffix=info.cover_ext)[1])
+        cover_path.write_bytes(info.cover)
+    try:
+        if output.suffix.lower() == ".wav" and post_speed == 1.0:
+            marks = concat_chapters(paths, titles, output, engine.sr)
+            metadata = ffmetadata(marks, info)
+        else:
+            wav_path = Path(tempfile.mkstemp(suffix=".wav")[1])
+            try:
+                marks = concat_chapters(paths, titles, wav_path, engine.sr)
+                duration = marks[-1][2] if marks else 0.0
+                convert(
+                    wav_path, output, ffmetadata(marks, info), duration,
+                    post_speed, cover=cover_path,
+                )
+            finally:
+                wav_path.unlink(missing_ok=True)
+            metadata = scale_metadata(ffmetadata(marks, info), post_speed)
+        if output.suffix.lower() == ".wav":
+            # Sidecars let `cathy convert book.wav book.m4b` keep the
+            # chapters, tags, and cover art.
+            output.with_suffix(".chapters.txt").write_text(metadata, encoding="utf-8")
+            if info.cover:
+                output.with_suffix(f".cover{info.cover_ext}").write_bytes(info.cover)
+    finally:
+        if cover_path is not None:
+            cover_path.unlink(missing_ok=True)
     import shutil
 
     shutil.rmtree(workdir, ignore_errors=True)
-    if output.suffix.lower() == ".wav":
-        # Sidecar lets `cathy convert book.wav book.m4b` keep the chapters.
-        output.with_suffix(".chapters.txt").write_text(metadata, encoding="utf-8")
     print(f"Wrote {output}")
 
 
