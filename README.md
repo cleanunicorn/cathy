@@ -20,7 +20,7 @@ There are two ways to get cathy; pick one.
 ### Option 1: global install from GitHub
 
 ```sh
-uv tool install git+https://github.com/cleanunicorn/cathy
+uv tool install --python 3.12 git+https://github.com/cleanunicorn/cathy
 ```
 
 That puts a `cathy` command on your PATH, runnable from any directory. All
