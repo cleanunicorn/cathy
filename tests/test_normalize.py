@@ -15,28 +15,39 @@ class TestSkipReason:
     def test_skips_by_title(self):
         for title in ("Contents", "TABLE OF CONTENTS", "Copyright", "Index",
                       "Title Page", "3. Bibliography"):
-            assert skip_reason(5, title, PROSE) is not None, title
+            assert skip_reason(5, 20, title, PROSE) is not None, title
 
     def test_skips_by_title_prefix(self):
-        assert skip_reason(0, "Praise for Great Book", PROSE)
-        assert skip_reason(0, "Also by Jane Doe", PROSE)
+        assert skip_reason(0, 20, "Praise for Great Book", PROSE)
+        assert skip_reason(0, 20, "Also by Jane Doe", PROSE)
 
     def test_keeps_normal_chapters(self):
-        assert skip_reason(4, "Chapter One", PROSE) is None
-        assert skip_reason(4, "The Index Card", PROSE) is None
+        assert skip_reason(4, 20, "Chapter One", PROSE) is None
+        assert skip_reason(4, 20, "The Index Card", PROSE) is None
 
     def test_copyright_by_content(self):
         paragraphs = ["Great Book", "All rights reserved.", "ISBN 978-0-00"]
-        assert skip_reason(1, "", paragraphs) == "copyright page"
+        assert skip_reason(1, 20, "", paragraphs) == "copyright page"
         # a long chapter mentioning an ISBN is not a copyright page
-        assert skip_reason(9, "Notes on Sources", ["isbn things"] + PROSE * 4) is None
+        assert skip_reason(9, 20, "Notes on Sources", ["isbn things"] + PROSE * 4) is None
 
     def test_toc_by_content(self):
         toc = [f"Chapter {n}" for n in range(8)]
-        assert skip_reason(1, "", toc) == "table of contents"
+        assert skip_reason(1, 20, "", toc) == "table of contents"
         # only untitled chapters near the start qualify
-        assert skip_reason(5, "", toc) is None
-        assert skip_reason(1, "Haiku", toc) is None
+        assert skip_reason(5, 20, "", toc) is None
+        assert skip_reason(1, 20, "Haiku", toc) is None
+
+    def test_endnotes_by_title(self):
+        assert skip_reason(18, 20, "Notes", PROSE)
+        assert skip_reason(18, 20, "Endnotes", PROSE)
+
+    def test_endnotes_by_content_only_late_in_book(self):
+        notes = [f"{n}. See the archive for details." for n in range(1, 15)]
+        assert skip_reason(18, 20, "Sources", notes) == "Sources"
+        assert skip_reason(19, 20, "", notes) == "endnotes"
+        # the same shape mid-book is kept (could be a real numbered list)
+        assert skip_reason(5, 20, "Sources", notes) is None
 
     def test_drop_front_back_matter(self):
         chapters = [("Contents", ["1", "2", "3", "4", "5"]), ("One", PROSE)]

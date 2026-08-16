@@ -130,7 +130,8 @@ removed once the output is written). Changing the engine, voice, speed, or
 text invalidates the affected checkpoints automatically.
 
 Front and back matter that makes no sense read aloud — title page, table of
-contents, copyright page, index, "also by"/"praise for" lists — is skipped
+contents, copyright page, index, endnote collections, "also by"/"praise
+for" lists — is skipped
 automatically (cathy prints what it skipped); pass `--all` to narrate
 everything. Text is also cleaned up for narration: footnote markers, markdown
 formatting, scene-separator glyphs, and stray page numbers are dropped, and

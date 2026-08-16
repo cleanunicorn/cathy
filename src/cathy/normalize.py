@@ -22,6 +22,9 @@ SKIP_TITLES = {
     "references",
     "colophon",
     "about the publisher",
+    "notes",
+    "endnotes",
+    "footnotes",
 }
 SKIP_TITLE_PREFIXES = ("also by ", "other books by ", "praise for ")
 
@@ -45,7 +48,20 @@ def _looks_like_toc(paragraphs: list[str]) -> bool:
     return short / len(paragraphs) >= 0.8
 
 
-def skip_reason(index: int, title: str, paragraphs: list[str]) -> str | None:
+_NOTE_ITEM = re.compile(r"\d{1,3}[.):]")
+
+
+def _looks_like_endnotes(paragraphs: list[str]) -> bool:
+    """A long run of numbered items reads like an endnote collection."""
+    if len(paragraphs) < 10:
+        return False
+    numbered = sum(1 for p in paragraphs if _NOTE_ITEM.match(p))
+    return numbered / len(paragraphs) > 0.7
+
+
+def skip_reason(
+    index: int, total: int, title: str, paragraphs: list[str]
+) -> str | None:
     """Why this chapter should not be narrated, or None to keep it."""
     canonical = _canonical(title)
     if canonical in SKIP_TITLES or canonical.startswith(SKIP_TITLE_PREFIXES):
@@ -54,6 +70,10 @@ def skip_reason(index: int, title: str, paragraphs: list[str]) -> str | None:
         return title or "copyright page"
     if index < 3 and not title and _looks_like_toc(paragraphs):
         return "table of contents"
+    # numbered-item detection only in the book's last quarter — a numbered
+    # list mid-book is usually real content
+    if index >= total * 3 // 4 and _looks_like_endnotes(paragraphs):
+        return title or "endnotes"
     return None
 
 
@@ -63,7 +83,7 @@ def drop_front_back_matter(
     """Split chapters into (kept, names of skipped front/back matter)."""
     kept, skipped = [], []
     for i, (title, paragraphs) in enumerate(chapters):
-        reason = skip_reason(i, title, paragraphs)
+        reason = skip_reason(i, len(chapters), title, paragraphs)
         if reason is None:
             kept.append((title, paragraphs))
         else:
