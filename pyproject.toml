@@ -6,7 +6,8 @@ readme = "README.md"
 authors = [
     { name = "Daniel Luca", email = "lucadanielcostin@gmail.com" }
 ]
-requires-python = ">=3.12"
+# <3.14: torch wheels below 2.9 (see the torch cap) don't exist for 3.14
+requires-python = ">=3.12,<3.14"
 dependencies = [
     "beautifulsoup4>=4.12",
     "ebooklib>=0.19",
