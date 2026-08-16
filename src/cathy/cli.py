@@ -1,6 +1,7 @@
 """Command-line interface: text file in, narrated audio out."""
 
 import argparse
+import re
 import subprocess
 import sys
 import tempfile
@@ -13,6 +14,7 @@ from cathy.engines import (
     QWEN_SPEAKERS,
     engine_available,
 )
+from cathy.normalize import drop_front_back_matter, normalize_chapters
 
 # Where delegated engine environments are installed from. Overridable so a
 # development clone can point at itself: CATHY_SOURCE=/path/to/clone
@@ -106,6 +108,13 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
         "re-timed with ffmpeg's pitch-preserving tempo filter; default: 1.0",
     )
     parser.add_argument(
+        "--all",
+        action="store_true",
+        help="narrate everything; by default front/back matter that makes no "
+        "sense read aloud (title page, contents, copyright, index, ...) is "
+        "skipped",
+    )
+    parser.add_argument(
         "--cpu", action="store_true", help="force CPU even if a GPU is available"
     )
     parser.add_argument(
@@ -145,6 +154,10 @@ def html_blocks(html: str):
     soup = BeautifulSoup(html, "html.parser")
     for tag in soup(["script", "style"]):
         tag.decompose()
+    # Superscript numbers are footnote markers, not prose — don't read them.
+    for tag in soup("sup"):
+        if re.fullmatch(r"[\d*†‡]{1,4}", tag.get_text(strip=True)):
+            tag.decompose()
     return [b for b in soup.find_all(BLOCK_TAGS) if b.find_parent(BLOCK_TAGS) is None]
 
 
@@ -231,18 +244,14 @@ def text_to_chapters(text: str) -> list[Chapter]:
 
 
 def load_chapters(path: Path) -> list[Chapter]:
-    """Read a text/ebook file and return its chapters."""
+    """Read a text/ebook file and return its chapters (titles as found;
+    untitled chapters are numbered later, after front-matter filtering)."""
     suffix = path.suffix.lower()
     if suffix in (".mobi", ".azw", ".azw3"):
-        chapters = mobi_to_chapters(path)
-    elif suffix == ".epub":
-        chapters = epub_to_chapters(path)
-    else:
-        chapters = text_to_chapters(path.read_text(encoding="utf-8"))
-    return [
-        (title or f"Chapter {i}", paragraphs)
-        for i, (title, paragraphs) in enumerate(chapters, start=1)
-    ]
+        return mobi_to_chapters(path)
+    if suffix == ".epub":
+        return epub_to_chapters(path)
+    return text_to_chapters(path.read_text(encoding="utf-8"))
 
 
 def trim_edges(audio, sr: int, threshold: float = 2e-3):
@@ -257,11 +266,26 @@ def trim_edges(audio, sr: int, threshold: float = 2e-3):
     if loud.size == 0:
         return audio
     keep = int(sr * EDGE_KEEP_SECONDS)
-    return audio[max(0, loud[0] - keep) : min(len(audio), loud[-1] + keep)]
+    return audio[max(0, loud[0] - keep) : min(len(audio), loud[-1] + 1 + keep)]
 
 
-def narrate(engine, chapters: list[Chapter], wav_path: Path) -> list[tuple[str, float, float]]:
-    """Synthesize all chapters into wav_path; return (title, start_s, end_s) marks."""
+def chapter_hash(fingerprint: str, title: str, paragraphs: list[str]) -> str:
+    import hashlib
+
+    text = "\n\n".join([fingerprint, title, *paragraphs])
+    return hashlib.sha256(text.encode("utf-8")).hexdigest()[:16]
+
+
+def narrate_chapters(
+    engine, chapters: list[Chapter], workdir: Path, fingerprint: str
+) -> list[Path]:
+    """Synthesize each chapter into its own wav inside workdir; return paths.
+
+    Chapter files are named by a hash of the settings and text, and finished
+    files are renamed into place atomically — so an interrupted run resumes
+    where it left off, and a changed voice/engine/text never reuses stale
+    audio.
+    """
     import numpy as np
     import soundfile as sf
     from tqdm import tqdm
@@ -271,32 +295,60 @@ def narrate(engine, chapters: list[Chapter], wav_path: Path) -> list[tuple[str, 
     def silence(seconds: float):
         return np.zeros(int(sr * seconds), dtype=np.float32)
 
+    workdir.mkdir(parents=True, exist_ok=True)
+    paths = [
+        workdir / f"chapter-{i:04d}-{chapter_hash(fingerprint, title, paragraphs)}.wav"
+        for i, (title, paragraphs) in enumerate(chapters, start=1)
+    ]
+    for stale in set(workdir.glob("*.wav")) - set(paths):
+        stale.unlink()
+    done = sum(1 for p in paths if p.exists())
+    if done:
+        print(f"Resuming: {done} of {len(chapters)} chapters already narrated.")
+
+    total = sum(len(paragraphs) for _, paragraphs in chapters)
+    with tqdm(total=total, unit="para", desc="Narrating") as progress:
+        for path, (title, paragraphs) in zip(paths, chapters):
+            if path.exists():
+                progress.update(len(paragraphs))
+                continue
+            tmp = path.with_suffix(".tmp.wav")
+            with sf.SoundFile(
+                tmp, mode="w", samplerate=sr, channels=1, format="WAV"
+            ) as f:
+                for i, paragraph in enumerate(paragraphs):
+                    first = True
+                    for audio in engine.paragraph(paragraph):
+                        if not first:
+                            f.write(silence(SENTENCE_PAUSE))
+                        f.write(trim_edges(audio, sr))
+                        first = False
+                    # A chapter's first paragraph is usually its heading; give
+                    # it the longer, audiobook-style pause.
+                    is_heading = i == 0 and paragraph == title
+                    f.write(silence(HEADING_PAUSE if is_heading else PARAGRAPH_PAUSE))
+                    progress.update(1)
+            tmp.replace(path)
+    return paths
+
+
+def concat_chapters(
+    paths: list[Path], titles: list[str], wav_path: Path, sr: int
+) -> list[tuple[str, float, float]]:
+    """Concatenate chapter wavs into wav_path; return (title, start_s, end_s)."""
+    import soundfile as sf
+
     marks = []
     written = 0
-    total = sum(len(paragraphs) for _, paragraphs in chapters)
-    with (
-        sf.SoundFile(wav_path, mode="w", samplerate=sr, channels=1, format="WAV") as f,
-        tqdm(total=total, unit="para", desc="Narrating") as progress,
-    ):
-        def emit(chunk) -> None:
-            nonlocal written
-            f.write(chunk)
-            written += len(chunk)
-
-        for title, paragraphs in chapters:
+    with sf.SoundFile(
+        wav_path, mode="w", samplerate=sr, channels=1, format="WAV"
+    ) as out:
+        for title, path in zip(titles, paths):
             start = written
-            for i, paragraph in enumerate(paragraphs):
-                first = True
-                for audio in engine.paragraph(paragraph):
-                    if not first:
-                        emit(silence(SENTENCE_PAUSE))
-                    emit(trim_edges(audio, sr))
-                    first = False
-                # A chapter's first paragraph is usually its heading; give it
-                # the longer, audiobook-style pause.
-                is_heading = i == 0 and paragraph == title
-                emit(silence(HEADING_PAUSE if is_heading else PARAGRAPH_PAUSE))
-                progress.update(1)
+            with sf.SoundFile(path) as f:
+                for block in f.blocks(blocksize=1 << 16, dtype="float32"):
+                    out.write(block)
+                    written += len(block)
             marks.append((title, start / sr, written / sr))
     return marks
 
@@ -619,8 +671,17 @@ def main(argv: list[str] | None = None) -> None:
             "for an audiobook with chapter markers"
         )
     chapters = load_chapters(args.input)
+    if not args.all:
+        chapters, skipped = drop_front_back_matter(chapters)
+        if skipped:
+            print(f"Skipping (use --all to keep): {', '.join(skipped)}")
+    chapters = normalize_chapters(chapters)
     if not chapters:
         sys.exit("error: input file contains no text")
+    chapters = [
+        (title or f"Chapter {i}", paragraphs)
+        for i, (title, paragraphs) in enumerate(chapters, start=1)
+    ]
 
     # Kokoro re-times speech natively (best quality); the other engines have
     # no speed input, so their audio is re-timed afterwards with ffmpeg.
@@ -636,18 +697,38 @@ def main(argv: list[str] | None = None) -> None:
         args.engine, args.voice, args.speed if native_speed else 1.0, device
     )
 
+    # Per-chapter checkpoints: an interrupted run resumes from here. The
+    # fingerprint covers everything that changes the audio itself.
+    workdir = output.parent / f"{output.name}.partial"
+    fingerprint = "|".join(
+        [args.engine, args.voice or "male",
+         str(args.speed if native_speed else 1.0), str(engine.sr)]
+    )
+    try:
+        paths = narrate_chapters(engine, chapters, workdir, fingerprint)
+    except KeyboardInterrupt:
+        print(
+            f"\nInterrupted — finished chapters are saved in {workdir}/; "
+            "rerun the same command to resume."
+        )
+        sys.exit(130)
+
+    titles = [title for title, _ in chapters]
     if output.suffix.lower() == ".wav" and post_speed == 1.0:
-        marks = narrate(engine, chapters, output)
+        marks = concat_chapters(paths, titles, output, engine.sr)
         metadata = ffmetadata(marks)
     else:
         wav_path = Path(tempfile.mkstemp(suffix=".wav")[1])
         try:
-            marks = narrate(engine, chapters, wav_path)
+            marks = concat_chapters(paths, titles, wav_path, engine.sr)
             duration = marks[-1][2] if marks else 0.0
             convert(wav_path, output, ffmetadata(marks), duration, post_speed)
         finally:
             wav_path.unlink(missing_ok=True)
         metadata = scale_metadata(ffmetadata(marks), post_speed)
+    import shutil
+
+    shutil.rmtree(workdir, ignore_errors=True)
     if output.suffix.lower() == ".wav":
         # Sidecar lets `cathy convert book.wav book.m4b` keep the chapters.
         output.with_suffix(".chapters.txt").write_text(metadata, encoding="utf-8")

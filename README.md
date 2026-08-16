@@ -116,6 +116,19 @@ markdown `#`/`##` headings (plain text). Writing to `.m4b` or `.m4a` embeds
 them as real chapter markers, so audiobook players show a chapter list and
 remember your position. Other formats (mp3, wav) get one continuous stream.
 
+Narration checkpoints each finished chapter into `<output>.partial/`. If a
+long run is interrupted — Ctrl-C, crash, out-of-memory — rerun the same
+command and it resumes from the last finished chapter (the directory is
+removed once the output is written). Changing the engine, voice, speed, or
+text invalidates the affected checkpoints automatically.
+
+Front and back matter that makes no sense read aloud — title page, table of
+contents, copyright page, index, "also by"/"praise for" lists — is skipped
+automatically (cathy prints what it skipped); pass `--all` to narrate
+everything. Text is also cleaned up for narration: footnote markers, markdown
+formatting, scene-separator glyphs, and stray page numbers are dropped, and
+URLs are read as their bare domain.
+
 ## Engines
 
 Pick an engine with `-e`; the first use of each downloads its environment
