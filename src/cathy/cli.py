@@ -6,7 +6,17 @@ import sys
 import tempfile
 from pathlib import Path
 
-from cathy.engines import ENGINES, KOKORO_ALIASES, KOKORO_VOICES, QWEN_SPEAKERS
+from cathy.engines import (
+    ENGINES,
+    KOKORO_ALIASES,
+    KOKORO_VOICES,
+    QWEN_SPEAKERS,
+    engine_available,
+)
+
+# Where delegated engine environments are installed from. Overridable so a
+# development clone can point at itself: CATHY_SOURCE=/path/to/clone
+CATHY_SOURCE = "git+https://github.com/cleanunicorn/cathy"
 
 # Graded pauses, audiobook-style: short between sentences (engine chunk
 # boundaries fall on sentence ends), longer between paragraphs, longest after
@@ -42,8 +52,8 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
         choices=ENGINES,
         default="kokoro",
         help="TTS engine; kokoro (default) is ~50x faster than the others and "
-        "the right choice for whole books. qwen/chatterbox/fish need their "
-        "extra installed: uv run --extra <engine> cathy ...",
+        "the right choice for whole books. qwen/chatterbox/fish run in their "
+        "own environments, downloaded on first use (or via: cathy setup)",
     )
     parser.add_argument(
         "-v",
@@ -299,7 +309,60 @@ def convert(wav_path: Path, output: Path, marks: list[tuple[str, float, float]])
             sys.exit(f"error: ffmpeg failed converting to {output}")
 
 
+def engine_spec(engine: str) -> str:
+    import os
+
+    return f"cathy[{engine}] @ {os.environ.get('CATHY_SOURCE', CATHY_SOURCE)}"
+
+
+def delegate(engine: str, argv: list[str]) -> None:
+    """Re-run this command via uv in an environment that has the engine.
+
+    uv caches the environment per spec, so only the first run downloads.
+    """
+    import os
+    import shutil
+
+    if os.environ.get("CATHY_DELEGATED"):
+        sys.exit(f"error: engine {engine!r} still unavailable after delegation")
+    if shutil.which("uv") is None:
+        sys.exit(
+            f"error: engine {engine!r} is not installed and uv is not on PATH; "
+            f"install with: uv tool install --reinstall '{engine_spec(engine)}'"
+        )
+    print(f"Engine {engine!r} runs in its own environment (first use downloads it)...")
+    result = subprocess.run(
+        # python 3.12: the engines' pinned dependency sets are validated there
+        ["uv", "tool", "run", "--python", "3.12", "--from", engine_spec(engine)]
+        + ["cathy", *argv],
+        env={**os.environ, "CATHY_DELEGATED": "1"},
+    )
+    sys.exit(result.returncode)
+
+
+def setup(engines: list[str]) -> None:
+    """Pre-download engine environments so first narration doesn't wait."""
+    engines = engines or [e for e in ENGINES if e != "kokoro"]
+    for engine in engines:
+        if engine not in ENGINES or engine == "kokoro":
+            sys.exit(f"error: unknown engine {engine!r}; options: qwen, chatterbox, fish")
+        print(f"Setting up {engine}...")
+        result = subprocess.run(
+            ["uv", "tool", "run", "--python", "3.12", "--from", engine_spec(engine)]
+            + ["cathy", "--list-voices"],
+            stdout=subprocess.DEVNULL,
+        )
+        if result.returncode != 0:
+            sys.exit(f"error: setup of {engine!r} failed")
+        print(f"Engine {engine} ready.")
+
+
 def main(argv: list[str] | None = None) -> None:
+    argv = sys.argv[1:] if argv is None else argv
+    if argv[:1] == ["setup"]:
+        setup(argv[1:])
+        return
+
     args = parse_args(argv)
 
     if args.list_voices:
@@ -308,6 +371,9 @@ def main(argv: list[str] | None = None) -> None:
 
     if not args.input.exists():
         sys.exit(f"error: {args.input} not found")
+
+    if not engine_available(args.engine):
+        delegate(args.engine, argv)
 
     import torch
 

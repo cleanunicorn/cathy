@@ -8,6 +8,18 @@ from pathlib import Path
 
 ENGINES = ("kokoro", "qwen", "chatterbox", "fish")
 
+# Top-level module each engine extra provides, to detect availability.
+ENGINE_IMPORTS = {"qwen": "qwen_tts", "chatterbox": "chatterbox", "fish": "fish_speech"}
+
+
+def engine_available(name: str) -> bool:
+    """True if the engine can run in the current environment."""
+    if name == "kokoro":
+        return True
+    import importlib.util
+
+    return importlib.util.find_spec(ENGINE_IMPORTS[name]) is not None
+
 # Curated subset of Kokoro's built-in voices. Prefix encodes language/gender:
 # a=American, b=British English; f=female, m=male.
 KOKORO_VOICES = {

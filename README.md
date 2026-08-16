@@ -23,18 +23,23 @@ There are two ways to get cathy; pick one.
 uv tool install git+https://github.com/cleanunicorn/cathy
 ```
 
-That puts a `cathy` command on your PATH, runnable from any directory:
+That puts a `cathy` command on your PATH, runnable from any directory. All
+engines are available immediately:
 
 ```sh
-cathy book.mobi -o book.m4b
+cathy book.mobi -o book.m4b          # kokoro, the default
+cathy book.txt -e qwen               # any other engine just works
 ```
 
-To use a non-default engine, install with its extra instead (one engine per
-install — their dependency pins conflict):
+The non-default engines live in separate environments (their dependency pins
+conflict), which cathy manages for you through uv: the first `-e qwen` /
+`-e chatterbox` / `-e fish` run downloads that engine's environment (a few
+GB), and later runs reuse it. To pre-download instead of waiting on first
+use:
 
 ```sh
-uv tool install --reinstall "cathy[qwen] @ git+https://github.com/cleanunicorn/cathy"
-cathy book.txt -e qwen
+cathy setup              # all three optional engines
+cathy setup fish         # just one
 ```
 
 Upgrade later with `uv tool upgrade cathy`; remove with `uv tool uninstall cathy`.
@@ -49,12 +54,15 @@ cd cathy
 uv run cathy book.mobi -o book.m4b
 ```
 
-From a clone, non-default engines are selected per run with `--extra`, no
-reinstall needed:
+From a clone, non-default engines are selected per run with `--extra`:
 
 ```sh
 uv run --extra qwen cathy book.txt -e qwen
 ```
+
+(Running `-e qwen` without the `--extra` also works — cathy falls back to a
+delegated environment as in the global install, fetched from GitHub unless
+`CATHY_SOURCE` points elsewhere, e.g. `CATHY_SOURCE=$PWD` for local code.)
 
 Note the difference: an installed tool is invoked as `cathy ...` from
 anywhere, a clone as `uv run cathy ...` from inside the repo. All flags below
@@ -88,15 +96,14 @@ remember your position. Other formats (mp3, wav) get one continuous stream.
 
 ## Engines
 
-Each non-default engine lives in its own dependency environment (their pinned
-torch/transformers versions conflict). Select one with `--extra` from a clone,
-or reinstall the tool with the matching extra (see Install and run above):
+Pick an engine with `-e`; the first use of each downloads its environment
+(pre-download with `cathy setup`):
 
 ```sh
-uv run cathy book.mobi -o book.m4b                              # kokoro (default)
-uv run --extra qwen cathy book.txt -e qwen -v Ryan
-uv run --extra chatterbox cathy book.txt -e chatterbox -v me.wav
-uv run --extra fish cathy book.txt -e fish -v female
+cathy book.mobi -o book.m4b                  # kokoro (default)
+cathy book.txt -e qwen -v Ryan
+cathy book.txt -e chatterbox -v me.wav
+cathy book.txt -e fish -v female
 ```
 
 | Engine | Model | Speed (RTX 3080) | Voices | License |
@@ -111,15 +118,14 @@ uv run --extra fish cathy book.txt -e fish -v female
 a ~10 s `.wav` of any speaker to clone that voice instead.
 
 Kokoro is the right default for whole books; the others trade speed for
-expressiveness or cloning. Switching engines swaps the virtualenv (a few GB of
-packages), so expect the first `--extra` run to take a while.
+expressiveness or cloning. Each engine environment is a few GB on disk (uv
+caches them; `uv cache clean` reclaims the space).
 
 ## Notes
 
-- All environments share torch 2.8.0 from the CUDA 12.8 wheel index (pinned in
-  `pyproject.toml`): the default cu130 build hits a cuDNN version mismatch,
-  chatterbox pins torch 2.6, and fish predates 2.8 — one override keeps every
-  engine on a working wheel.
+- torch is capped below 2.9 everywhere: newer PyPI wheels bundle CUDA 13
+  libraries that hit a cuDNN version mismatch at inference time. Repo
+  development additionally pins torch 2.8.0 via uv overrides.
 - Kokoro voice prefixes select the language (`a` American, `b` British
   English). Blending averages style vectors — `af_heart:2,af_bella:1` is two
   parts heart, one part bella — letting you tune a narrator between presets.
