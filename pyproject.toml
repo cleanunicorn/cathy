@@ -8,7 +8,10 @@ authors = [
 ]
 requires-python = ">=3.12"
 dependencies = [
+    "beautifulsoup4>=4.15.0",
+    "ebooklib>=0.20",
     "kokoro>=0.9.4",
+    "mobi>=0.4.1",
     "soundfile>=0.14.0",
     "torch>=2.11.0",
     "tqdm>=4.70.0",

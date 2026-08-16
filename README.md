@@ -24,7 +24,9 @@ uv run cathy --list-voices
 The first run downloads the model (~330 MB) from Hugging Face; everything after
 that is offline.
 
-Input is plain text (`.txt`, `.md`, …). Paragraphs (blank-line separated) are
+Input can be plain text (`.txt`, `.md`, …) or an ebook (`.mobi`, `.azw`,
+`.azw3`, `.epub`) — ebooks are unpacked in memory and their chapters narrated
+in reading order. Paragraphs (blank-line separated) are
 narrated with a short pause between them, and audio is streamed to disk as it
 is generated, so book-length inputs won't exhaust memory.
 

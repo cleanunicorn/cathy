@@ -28,7 +28,9 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
         prog="cathy",
         description="Turn a text file into speech, fully locally (GPU-accelerated).",
     )
-    parser.add_argument("input", nargs="?", type=Path, help="input .txt/.md file")
+    parser.add_argument(
+        "input", nargs="?", type=Path, help="input .txt/.md/.mobi/.azw3/.epub file"
+    )
     parser.add_argument(
         "-o",
         "--output",
@@ -56,9 +58,64 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     return args
 
 
+BLOCK_TAGS = ["p", "h1", "h2", "h3", "h4", "li", "blockquote"]
+
+
+def html_to_text(html: str) -> str:
+    """Extract readable text from HTML as blank-line separated paragraphs."""
+    from bs4 import BeautifulSoup
+
+    soup = BeautifulSoup(html, "html.parser")
+    for tag in soup(["script", "style"]):
+        tag.decompose()
+    blocks = [
+        b for b in soup.find_all(BLOCK_TAGS) if b.find_parent(BLOCK_TAGS) is None
+    ]
+    if blocks:
+        return "\n\n".join(b.get_text(" ", strip=True) for b in blocks)
+    return soup.get_text("\n\n", strip=True)
+
+
+def epub_to_text(path: Path) -> str:
+    """Extract text from an epub, following the book's spine order."""
+    from ebooklib import ITEM_DOCUMENT, epub
+
+    book = epub.read_epub(str(path), options={"ignore_ncx": True})
+    chapters = []
+    for spine_id, _ in book.spine:
+        item = book.get_item_with_id(spine_id)
+        if item is not None and item.get_type() == ITEM_DOCUMENT:
+            chapters.append(html_to_text(item.get_content().decode("utf-8", "ignore")))
+    return "\n\n".join(chapters)
+
+
+def mobi_to_text(path: Path) -> str:
+    """Unpack a mobi/azw file and extract text from whatever is inside."""
+    import shutil
+
+    import mobi
+
+    tempdir, extracted = mobi.extract(str(path))
+    try:
+        extracted = Path(extracted)
+        if extracted.suffix.lower() == ".epub":
+            return epub_to_text(extracted)
+        if extracted.suffix.lower() in (".html", ".htm"):
+            return html_to_text(extracted.read_text(encoding="utf-8", errors="ignore"))
+        return extracted.read_text(encoding="utf-8", errors="ignore")
+    finally:
+        shutil.rmtree(tempdir, ignore_errors=True)
+
+
 def load_text(path: Path) -> list[str]:
-    """Read the input file and return non-empty paragraphs."""
-    text = path.read_text(encoding="utf-8")
+    """Read a text/ebook file and return non-empty paragraphs."""
+    suffix = path.suffix.lower()
+    if suffix in (".mobi", ".azw", ".azw3"):
+        text = mobi_to_text(path)
+    elif suffix == ".epub":
+        text = epub_to_text(path)
+    else:
+        text = path.read_text(encoding="utf-8")
     paragraphs = [p.strip() for p in text.split("\n\n")]
     return [p.replace("\n", " ") for p in paragraphs if p]
 
