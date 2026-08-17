@@ -9,6 +9,7 @@ import typing
 from pathlib import Path
 
 from cathy.engines import (
+    CHUNK_FLOOR,
     ENGINES,
     KOKORO_ALIASES,
     KOKORO_INTL,
@@ -167,6 +168,10 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
             "input file is required — e.g. `cathy book.mobi -o book.m4b`; "
             "see `cathy help` for options and subcommands"
         )
+    if args.max_chunk_chars is not None and args.max_chunk_chars < CHUNK_FLOOR:
+        # Below this the engine is fed fragments too short to carry prosody,
+        # and 0 or a negative value would narrate a word at a time.
+        parser.error(f"--max-chunk-chars must be at least {CHUNK_FLOOR}")
     return args
 
 

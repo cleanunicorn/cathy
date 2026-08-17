@@ -79,16 +79,27 @@ REFERENCE_TEXT = (
 )
 
 
-_SENTENCE_END = re.compile(r"(?<=[.!?…])\s+")
-_CLAUSE_END = re.compile(r"(?<=[,;:—–])\s+")
+# CJK punctuation carries no trailing space, so the whitespace that ends a
+# Western sentence has to be optional for those scripts.
+_SENTENCE_END = re.compile(r"(?<=[.!?…])\s+|(?<=[。！？])\s*")
+_CLAUSE_END = re.compile(r"(?<=[,;:—–])\s+|(?<=[、，；：])\s*")
 
 
 def _hard_split(text: str, limit: int) -> list[str]:
     """Last resort for a run of text with no usable punctuation: break it on
-    whitespace at the limit."""
-    words = text.split()
+    whitespace, then mid-run if a single stretch is still too long — Chinese
+    and Japanese put no spaces between words, so whitespace alone can't be
+    relied on to get under the limit."""
     pieces, current = [], ""
-    for word in words:
+    for word in text.split():
+        while len(word) > limit:
+            if current:
+                pieces.append(current)
+                current = ""
+            pieces.append(word[:limit])
+            word = word[limit:]
+        if not word:
+            continue
         if current and len(current) + len(word) + 1 > limit:
             pieces.append(current)
             current = word
@@ -166,11 +177,13 @@ def _synthesize(engine, text: str, synth):
 
     A character cap can't guarantee the GPU fits a chunk — that depends on the
     card, on what else is using it, and on how much audio the text turns into.
-    So on CUDA OOM, halve this engine's chunk limit, re-split the chunk that
-    failed, and carry the smaller limit for the rest of the run. `synth` must
-    finish before anything is yielded, or a retry would duplicate audio that
-    the caller already wrote. Recovery is best-effort: an OOM can leave the
-    allocator fragmented, and past CHUNK_FLOOR the error propagates."""
+    So on CUDA OOM, halve this engine's chunk limit and re-split everything
+    still unsynthesized — not just the chunk that failed, which would leave
+    the rest of the paragraph queued at the size that just OOMed and fail
+    again a chunk later. `synth` must finish before anything is yielded, or a
+    retry would duplicate audio that the caller already wrote. Recovery is
+    best-effort: an OOM can leave the allocator fragmented, and past
+    CHUNK_FLOOR the error propagates."""
     import torch
 
     pending = split_sentences(text, engine.chunk_limit)
@@ -188,7 +201,7 @@ def _synthesize(engine, text: str, synth):
                 f"(--max-chunk-chars {engine.chunk_limit})",
                 file=sys.stderr,
             )
-            pending = split_sentences(group, engine.chunk_limit) + pending
+            pending = split_sentences(" ".join([group, *pending]), engine.chunk_limit)
 
 
 def _quiet() -> None:
@@ -357,8 +370,12 @@ class ClonedVoiceMixin:
 class ChatterboxEngine(ClonedVoiceMixin):
     """Chatterbox-Nano: 110M cloning model, expressive, MIT-licensed."""
 
-    # Cloning models drift over long generations, so less headroom than qwen.
-    chunk_limit = 800
+    # Not measured — chatterbox isn't installed on the machine fish and qwen
+    # were profiled on, and both of those degraded silently (dropped or
+    # invented audio, no error) above their measured ceilings. This 110M model
+    # is the smallest of the three, so it stays near the 300 it was known to
+    # cope with until someone runs the same profile on it.
+    chunk_limit = 400
 
     def __init__(self, voice: str, speed: float, device: str, language: str | None = None):
         _quiet()
@@ -523,8 +540,8 @@ def build_engine(
         "fish": FishEngine,
     }
     engine = classes[name](voice or "male", speed, device, language)
-    if max_chunk_chars:
+    if max_chunk_chars is not None:
         # Kokoro has no chunk_limit: it hands whole paragraphs to KPipeline,
         # which chunks internally.
-        engine.chunk_limit = max_chunk_chars
+        engine.chunk_limit = max(CHUNK_FLOOR, max_chunk_chars)
     return engine
