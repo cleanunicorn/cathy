@@ -99,6 +99,7 @@ cathy book.epub -e qwen --max-chunk-chars 1000  # bigger chunks: smoother prosod
 cathy --list-voices
 cathy convert book.wav book.m4b   # convert existing audio, no re-narration
 cathy convert book.wav fast.m4b -s 1.25   # re-time while converting
+cathy convert chapters/ book.m4b  # join a folder of chapter files into one
 ```
 
 Ebook narration carries the book's title, author, and cover art into
@@ -109,6 +110,21 @@ Narrating to `.wav` also writes `book.chapters.txt` (chapters plus title and
 author tags) and `book.cover.jpg`/`.png` next to it, so a later
 `cathy convert book.wav book.m4b` still embeds everything. Convert works for
 any ffmpeg-supported output (mp3, flac, ...).
+
+`convert` also takes a **folder** instead of a file, joining the chapter files
+inside it into one output, one chapter marker per file:
+
+```sh
+cathy convert book.m4b.partial/ book.m4b   # assemble an interrupted run
+cathy convert "Blindsight/" book.m4b       # any folder of chapter audio
+```
+
+Chapter order and titles come from cathy's own `cathy-chapters.json` when the
+folder is one of its `.partial` checkpoint directories — so a run that
+narrated fine but died at the encoding step (no ffmpeg installed, say) is one
+command away from an audiobook. Other folders are sorted naturally by filename
+(`2` before `10`) with the filenames as chapter titles, and a `cover.jpg` in
+the folder becomes the cover art.
 
 The first run downloads the model (~330 MB) from Hugging Face; everything after
 that is offline.

@@ -32,6 +32,13 @@ HEADING_PAUSE = 1.0
 EDGE_KEEP_SECONDS = 0.05  # padding kept when trimming silence off segment edges
 CHAPTER_FORMATS = (".m4b", ".m4a")  # containers that get chapter markers
 EBOOK_FORMATS = (".mobi", ".azw", ".azw3", ".epub")
+# Audio files picked up when `cathy convert` is pointed at a folder
+AUDIO_FORMATS = (".wav", ".mp3", ".m4a", ".m4b", ".flac", ".ogg", ".opus", ".aac")
+# Written beside the per-chapter checkpoints so an interrupted run can be
+# assembled later with `cathy convert <workdir> book.m4b`
+MANIFEST_NAME = "cathy-chapters.json"
+# Checkpoint filenames from narrate_chapters (a content hash, no order in it)
+CHECKPOINT_NAME = re.compile(r"^chapter-[0-9a-f]{16}\.wav$")
 
 # A chapter is (title, paragraphs). Titles become m4b chapter markers.
 Chapter = tuple[str, list[str]]
@@ -48,8 +55,9 @@ class BookInfo(typing.NamedTuple):
 
 EPILOG = """\
 subcommands:
-  convert IN OUT [-s SPEED]   convert existing audio without re-narrating
-                              (keeps chapter markers via IN.chapters.txt)
+  convert IN OUT [-s SPEED]   convert existing audio without re-narrating;
+                              IN is an audio file (chapters come from
+                              IN.chapters.txt) or a folder of chapter files
   setup [ENGINE ...]          pre-download engine environments (qwen,
                               chatterbox, fish); also refreshes them after
                               an upgrade
@@ -63,6 +71,7 @@ examples:
   cathy book.epub -e fish -v sample.wav  clone the voice in sample.wav
   cathy book.epub --chapters 3-10        narrate part of the book
   cathy convert book.wav book.m4b        re-container without re-narrating
+  cathy convert chapters/ book.m4b       join a folder of chapter files
 """
 
 
@@ -437,8 +446,36 @@ def chapter_hash(fingerprint: str, title: str, paragraphs: list[str]) -> str:
     return hashlib.sha256(text.encode("utf-8")).hexdigest()[:16]
 
 
+def write_manifest(
+    workdir: Path, info: BookInfo | None, chapters: list[Chapter], paths: list[Path]
+) -> None:
+    """Record chapter order, titles, and book tags beside the checkpoints.
+
+    Checkpoint filenames are content hashes, so the folder alone says nothing
+    about order; the manifest lets `cathy convert <workdir> book.m4b` assemble
+    a run that never reached the encoding step.
+    """
+    import json
+
+    data = {
+        "title": info.title if info else "",
+        "author": info.author if info else "",
+        "chapters": [
+            {"file": path.name, "title": title}
+            for path, (title, _) in zip(paths, chapters)
+        ],
+    }
+    (workdir / MANIFEST_NAME).write_text(json.dumps(data, indent=2), encoding="utf-8")
+    if info is not None and info.cover:
+        (workdir / f"cover{info.cover_ext}").write_bytes(info.cover)
+
+
 def narrate_chapters(
-    engine, chapters: list[Chapter], workdir: Path, fingerprint: str
+    engine,
+    chapters: list[Chapter],
+    workdir: Path,
+    fingerprint: str,
+    info: BookInfo | None = None,
 ) -> list[Path]:
     """Synthesize each chapter into its own wav inside workdir; return paths.
 
@@ -462,6 +499,7 @@ def narrate_chapters(
         workdir / f"chapter-{chapter_hash(fingerprint, title, paragraphs)}.wav"
         for title, paragraphs in chapters
     ]
+    write_manifest(workdir, info, chapters, paths)
     # Half-written leftovers are useless; finished checkpoints with other
     # hashes stay — a different --chapters selection may still want them,
     # and the whole directory is removed after a successful run.
@@ -544,16 +582,114 @@ def ffmetadata(
 
 
 def probe_duration(path: Path) -> float:
-    result = subprocess.run(
-        ["ffprobe", "-v", "error", "-show_entries", "format=duration",
-         "-of", "csv=p=0", str(path)],
-        capture_output=True,
-        text=True,
-    )
+    try:
+        result = subprocess.run(
+            ["ffprobe", "-v", "error", "-show_entries", "format=duration",
+             "-of", "csv=p=0", str(path)],
+            capture_output=True,
+            text=True,
+        )
+    except FileNotFoundError:
+        sys.exit(
+            "error: ffprobe (part of ffmpeg) is not installed "
+            "(apt install ffmpeg / brew install ffmpeg)"
+        )
     try:
         return float(result.stdout.strip())
     except ValueError:
         return 0.0
+
+
+def natural_key(name: str) -> list:
+    """Sort key that orders 'chapter-2' before 'chapter-10'."""
+    return [
+        int(part) if part.isdigit() else part.lower()
+        for part in re.split(r"(\d+)", name)
+    ]
+
+
+def find_cover(folder: Path) -> Path | None:
+    for ext in (".jpg", ".jpeg", ".png"):
+        candidate = folder / f"cover{ext}"
+        if candidate.exists():
+            return candidate
+    return None
+
+
+def folder_chapters(folder: Path) -> tuple[BookInfo | None, list[tuple[Path, str]]]:
+    """Order a folder of chapter audio files, with a title for each.
+
+    cathy's own manifest wins (exact order, real titles, book tags). Failing
+    that, filenames are sorted naturally and their stems become the titles.
+    """
+    import json
+
+    manifest = folder / MANIFEST_NAME
+    if manifest.exists():
+        data = json.loads(manifest.read_text(encoding="utf-8"))
+        listed = [(folder / c["file"], c["title"]) for c in data["chapters"]]
+        entries = [(path, title) for path, title in listed if path.exists()]
+        if not entries:
+            sys.exit(f"error: none of the chapters listed in {manifest} are there")
+        if len(entries) < len(listed):
+            # A run interrupted mid-narration: assemble what finished, but say
+            # so — rerunning the original command fills in the rest.
+            print(
+                f"note: {len(listed) - len(entries)} of {len(listed)} chapters "
+                "were never narrated and are left out"
+            )
+        info = BookInfo(title=data.get("title", ""), author=data.get("author", ""))
+        return info, entries
+
+    files = sorted(
+        (
+            path
+            for path in folder.iterdir()
+            if path.is_file()
+            and path.suffix.lower() in AUDIO_FORMATS
+            # half-written checkpoints from an interrupted narration
+            and not path.name.endswith(".tmp.wav")
+        ),
+        key=lambda path: natural_key(path.name),
+    )
+    if not files:
+        sys.exit(f"error: no audio files in {folder}")
+    if all(CHECKPOINT_NAME.match(path.name) for path in files):
+        # Checkpoints from a cathy older than the manifest: hashes sort
+        # meaninglessly, but chapters were written one at a time, in order,
+        # so the modification times still carry it.
+        files.sort(key=lambda path: path.stat().st_mtime)
+        print(
+            f"note: {folder.name} holds hash-named checkpoints with no titles; "
+            "using file timestamps as the chapter order"
+        )
+        titles = [f"Chapter {i}" for i in range(1, len(files) + 1)]
+    else:
+        titles = [path.stem for path in files]
+    return None, list(zip(files, titles))
+
+
+def concat_marks(entries: list[tuple[Path, str]]) -> list[tuple[str, float, float]]:
+    """Chapter marks for files played back to back; durations come from ffprobe."""
+    marks = []
+    start = 0.0
+    for path, title in entries:
+        duration = probe_duration(path)
+        if duration <= 0.0:
+            sys.exit(f"error: could not read the duration of {path}")
+        marks.append((title, start, start + duration))
+        start += duration
+    return marks
+
+
+def write_concat_list(entries: list[tuple[Path, str]], list_path: Path) -> None:
+    """Write an ffmpeg concat demuxer list ("file '...'" per line)."""
+    lines = [
+        # In the demuxer's own quoting, ' ends the quoted string
+        "file '{}'".format(str(path.resolve()).replace("'", r"'\''"))
+        for path, _ in entries
+    ]
+    list_path.write_text("\n".join(lines) + "\n", encoding="utf-8")
 
 
 def atempo_chain(speed: float) -> str:
@@ -590,13 +726,15 @@ def convert(
     duration: float,
     speed: float = 1.0,
     cover: Path | None = None,
+    concat: bool = False,
 ) -> None:
     """Convert audio to the requested container via ffmpeg.
 
     metadata is ffmetadata text with book tags and chapter marks; it is
     embedded when the output container supports chapters (.m4b/.m4a), as is
     the cover image. speed != 1 re-times the audio with the atempo filter
-    (pitch-preserving), chapters included.
+    (pitch-preserving), chapters included. With concat, wav_path is a concat
+    demuxer list file instead of an audio file, and its entries are joined.
     """
     from tqdm import tqdm
 
@@ -604,6 +742,8 @@ def convert(
     metadata = scale_metadata(metadata, speed)
     duration /= speed
     cmd = ["ffmpeg", "-y", "-loglevel", "error", "-nostats", "-progress", "pipe:1"]
+    if concat:
+        cmd += ["-f", "concat", "-safe", "0"]
     cmd += ["-i", str(wav_path)]
     inputs = 1
     with tempfile.NamedTemporaryFile("w", suffix=".txt", delete_on_close=False) as meta:
@@ -627,7 +767,13 @@ def convert(
         if chaptered:
             cmd += ["-c:a", "aac", "-b:a", "96k", "-f", "ipod"]
         cmd.append(str(output))
-        proc = subprocess.Popen(cmd, stdout=subprocess.PIPE, text=True)
+        try:
+            proc = subprocess.Popen(cmd, stdout=subprocess.PIPE, text=True)
+        except FileNotFoundError:
+            sys.exit(
+                f"error: ffmpeg is needed to write {output.name} but is not "
+                "installed (apt install ffmpeg / brew install ffmpeg)"
+            )
         with tqdm(
             total=round(duration), unit="s", desc=f"Encoding {output.name}"
         ) as progress:
@@ -746,19 +892,47 @@ def setup(argv: list[str]) -> None:
         print(f"Engine {engine} ready.")
 
 
-def convert_command(argv: list[str]) -> None:
-    """cathy convert <input audio> <output audio> [-s SPEED]
+def convert_folder(folder: Path, output: Path, speed: float, chaptered: bool) -> None:
+    """Join a folder of chapter audio files into a single output file."""
+    info, entries = folder_chapters(folder)
+    print(f"Joining {len(entries)} files from {folder}")
+    cover = find_cover(folder) if chaptered else None
+    if cover is not None:
+        print(f"Using cover from {cover}")
+    marks = concat_marks(entries)
+    listing = Path(tempfile.mkstemp(suffix=".txt")[1])
+    try:
+        write_concat_list(entries, listing)
+        convert(
+            listing, output, ffmetadata(marks, info), marks[-1][2], speed,
+            cover=cover, concat=True,
+        )
+    finally:
+        listing.unlink(missing_ok=True)
 
-    Converts without re-narrating. If <input>.chapters.txt exists (written
-    when narrating to .wav), its chapter marks are embedded in m4b/m4a output.
+
+def convert_command(argv: list[str]) -> None:
+    """cathy convert <input audio or folder> <output audio> [-s SPEED]
+
+    Converts without re-narrating. A folder input is joined in order (chapter
+    titles from cathy's manifest, else from the filenames). For a file input,
+    chapter marks come from <input>.chapters.txt if it exists (written when
+    narrating to .wav).
     """
     parser = argparse.ArgumentParser(
         prog="cathy convert",
         description="Convert existing audio to another format without "
-        "re-narrating. If IN.chapters.txt exists (cathy writes it when "
-        "narrating to .wav), chapter markers are embedded in .m4b/.m4a output.",
+        "re-narrating. IN is an audio file — chapter markers then come from "
+        "IN.chapters.txt, which cathy writes when narrating to .wav — or a "
+        "folder of chapter files, which are joined in order, one chapter "
+        "marker each. Markers land in .m4b/.m4a output.",
     )
-    parser.add_argument("source", metavar="IN", type=Path, help="input audio file")
+    parser.add_argument(
+        "source",
+        metavar="IN",
+        type=Path,
+        help="input audio file, or a folder of chapter audio files",
+    )
     parser.add_argument(
         "output",
         metavar="OUT",
@@ -775,11 +949,17 @@ def convert_command(argv: list[str]) -> None:
     args = parser.parse_args(argv)
     if not args.source.exists():
         sys.exit(f"error: {args.source} not found")
+    chaptered = args.output.suffix.lower() in CHAPTER_FORMATS
+
+    if args.source.is_dir():
+        convert_folder(args.source, args.output, args.speed, chaptered)
+        print(f"Wrote {args.output}")
+        return
 
     metadata = None
     cover = None
     sidecar = args.source.with_suffix(".chapters.txt")
-    if args.output.suffix.lower() in CHAPTER_FORMATS:
+    if chaptered:
         if sidecar.exists():
             metadata = sidecar.read_text(encoding="utf-8")
             print(f"Using chapters from {sidecar}")
@@ -904,11 +1084,12 @@ def main(argv: list[str] | None = None) -> None:
          str(args.speed if native_speed else 1.0), str(engine.sr)]
     )
     try:
-        paths = narrate_chapters(engine, chapters, workdir, fingerprint)
+        paths = narrate_chapters(engine, chapters, workdir, fingerprint, info)
     except KeyboardInterrupt:
         print(
             f"\nInterrupted — finished chapters are saved in {workdir}/; "
-            "rerun the same command to resume."
+            "rerun the same command to resume, or run "
+            f"`cathy convert {workdir} {output}` to assemble what is there."
         )
         sys.exit(130)
 
