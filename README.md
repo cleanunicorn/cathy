@@ -205,6 +205,61 @@ oversized paragraph; setting it lower up front just avoids the retry.
 `cathy setup` after `uv tool upgrade cathy`; the per-engine environments are
 cached and only setup refreshes them.
 
+## Development
+
+```sh
+git clone https://github.com/cleanunicorn/cathy
+cd cathy
+uv sync                      # creates .venv with dev dependencies
+uv run pytest -q             # 49 tests, ~1 s
+uv run cathy book.txt        # run your working copy
+```
+
+`uv sync` pins Python 3.12 (`.python-version`) and installs the dev group
+(pytest). The tests cover text extraction, normalization, chunking, and audio
+plumbing only — no model downloads, no GPU.
+
+### Install your working copy as the `cathy` command
+
+To use local changes from any directory (replaces a GitHub-installed cathy):
+
+```sh
+uv tool install --python 3.12 --editable .
+```
+
+Editable means source edits take effect immediately, no reinstall. Go back to
+the published version with:
+
+```sh
+uv tool install --python 3.12 --force git+https://github.com/cleanunicorn/cathy
+```
+
+### Non-default engines against local code
+
+The optional engines run in separate uv environments. Two ways to point them
+at your clone rather than GitHub:
+
+```sh
+uv run --extra qwen cathy book.txt -e qwen              # inside the repo
+CATHY_SOURCE=/path/to/cathy cathy book.txt -e qwen      # from anywhere
+```
+
+Without `CATHY_SOURCE`, a delegated engine run fetches cathy from GitHub, so
+your local changes would not apply to that engine.
+
+### Layout
+
+| Path | Contents |
+|---|---|
+| `src/cathy/cli.py` | CLI, ebook parsing, chapters, chunking, audio writing |
+| `src/cathy/engines.py` | per-engine synthesis backends and voice handling |
+| `src/cathy/normalize.py` | text cleanup for narration (footnotes, URLs, glyphs) |
+| `tests/` | pytest suite, no GPU or network needed |
+
+CI (`.github/workflows/ci.yml`) runs the same pytest suite on Linux with only
+the lightweight dependencies installed, so keep new tests free of torch and
+model imports.
+
 ## Notes
 
 - torch is capped below 2.9 everywhere: newer PyPI wheels bundle CUDA 13
