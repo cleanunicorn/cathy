@@ -79,20 +79,129 @@ REFERENCE_TEXT = (
 )
 
 
-def split_sentences(text: str, limit: int = 300) -> list[str]:
-    """Split text into sentence groups of at most ~limit characters."""
-    sentences = re.split(r"(?<=[.!?…])\s+", text)
-    groups: list[str] = []
-    current = ""
-    for sentence in sentences:
-        if current and len(current) + len(sentence) + 1 > limit:
-            groups.append(current)
-            current = sentence
+# CJK punctuation carries no trailing space, so the whitespace that ends a
+# Western sentence has to be optional for those scripts.
+_SENTENCE_END = re.compile(r"(?<=[.!?…])\s+|(?<=[。！？])\s*")
+_CLAUSE_END = re.compile(r"(?<=[,;:—–])\s+|(?<=[、，；：])\s*")
+
+
+def _hard_split(text: str, limit: int) -> list[str]:
+    """Last resort for a run of text with no usable punctuation: break it on
+    whitespace, then mid-run if a single stretch is still too long — Chinese
+    and Japanese put no spaces between words, so whitespace alone can't be
+    relied on to get under the limit."""
+    pieces, current = [], ""
+    for word in text.split():
+        while len(word) > limit:
+            if current:
+                pieces.append(current)
+                current = ""
+            pieces.append(word[:limit])
+            word = word[limit:]
+        if not word:
+            continue
+        if current and len(current) + len(word) + 1 > limit:
+            pieces.append(current)
+            current = word
         else:
-            current = f"{current} {sentence}".strip()
+            current = f"{current} {word}".strip()
+    if current:
+        pieces.append(current)
+    return pieces
+
+
+def _units(text: str, limit: int) -> list[str]:
+    """Break text into pieces that are each at most `limit` characters,
+    preferring sentence ends, then clause punctuation, then whitespace."""
+    units = []
+    for sentence in _SENTENCE_END.split(text):
+        if len(sentence) <= limit:
+            units.append(sentence)
+            continue
+        for clause in _CLAUSE_END.split(sentence):
+            if len(clause) <= limit:
+                units.append(clause)
+            else:
+                units.extend(_hard_split(clause, limit))
+    return [u for u in units if u]
+
+
+def _pack(units: list[str], size: int) -> list[str]:
+    """Join units into groups of at most `size` characters, greedily."""
+    groups, current = [], ""
+    for unit in units:
+        if current and len(current) + len(unit) + 1 > size:
+            groups.append(current)
+            current = unit
+        else:
+            current = f"{current} {unit}".strip()
     if current:
         groups.append(current)
     return groups
+
+
+def split_sentences(text: str, limit: int = 1000) -> list[str]:
+    """Split text into groups of at most `limit` characters.
+
+    Text that already fits is returned whole: engines read a full paragraph
+    with better prosody than a string of fragments, and every group boundary
+    costs an audible SENTENCE_PAUSE. Longer text splits into roughly equal
+    groups, so no chunk is a stray tail, and the limit is a hard guarantee
+    even when a single sentence exceeds it."""
+    if len(text) <= limit:
+        return [text]
+
+    units = _units(text, limit)
+    # Fewest groups the text can fit in, then the smallest group size that
+    # still achieves it: filling each group to the brim instead would leave
+    # the last one a stray fragment.
+    count = -(-len(text) // limit)
+    low, high = -(-len(text) // count), limit
+    while low < high:
+        mid = (low + high) // 2
+        if len(_pack(units, mid)) <= count:
+            high = mid
+        else:
+            low = mid + 1
+    return _pack(units, low)
+
+
+# Below this the chunks are too short to carry prosody, so a card that still
+# OOMs here is simply too small and the error is worth surfacing.
+CHUNK_FLOOR = 150
+
+
+def _synthesize(engine, text: str, synth):
+    """Yield audio for `text` one chunk at a time, where `synth` renders one
+    chunk into a list of audio arrays.
+
+    A character cap can't guarantee the GPU fits a chunk — that depends on the
+    card, on what else is using it, and on how much audio the text turns into.
+    So on CUDA OOM, halve this engine's chunk limit and re-split everything
+    still unsynthesized — not just the chunk that failed, which would leave
+    the rest of the paragraph queued at the size that just OOMed and fail
+    again a chunk later. `synth` must finish before anything is yielded, or a
+    retry would duplicate audio that the caller already wrote. Recovery is
+    best-effort: an OOM can leave the allocator fragmented, and past
+    CHUNK_FLOOR the error propagates."""
+    import torch
+
+    pending = split_sentences(text, engine.chunk_limit)
+    while pending:
+        group = pending.pop(0)
+        try:
+            yield from synth(group)
+        except torch.cuda.OutOfMemoryError:
+            if engine.chunk_limit <= CHUNK_FLOOR:
+                raise
+            engine.chunk_limit = max(CHUNK_FLOOR, engine.chunk_limit // 2)
+            torch.cuda.empty_cache()
+            print(
+                f"\nnote: GPU out of memory; continuing with smaller chunks "
+                f"(--max-chunk-chars {engine.chunk_limit})",
+                file=sys.stderr,
+            )
+            pending = split_sentences(" ".join([group, *pending]), engine.chunk_limit)
 
 
 def _quiet() -> None:
@@ -180,6 +289,13 @@ class KokoroEngine:
 class QwenEngine:
     """Qwen3-TTS-0.6B-CustomVoice: expressive preset speakers, ~real-time."""
 
+    # Not VRAM-bound the way fish is — peak memory sits at ~2.8 GiB from 600
+    # to 1400 chars. The ceiling is fidelity: at 1400 chars generation ran
+    # long and produced 45% more audio than the text calls for (repetition or
+    # trailing babble). Clean at 600-1000 on both test texts; 800 keeps
+    # margin below where it starts to wander.
+    chunk_limit = 800
+
     def __init__(self, voice: str, speed: float, device: str, language: str | None = None):
         self.language = language or "English"
         _quiet()
@@ -217,9 +333,11 @@ class QwenEngine:
         )
 
     def paragraph(self, text: str):
-        for group in split_sentences(text):
+        def synth(group):
             wavs, _ = self._generate(group)
-            yield wavs[0]
+            return [wavs[0]]
+
+        yield from _synthesize(self, text, synth)
 
 
 class ClonedVoiceMixin:
@@ -252,6 +370,13 @@ class ClonedVoiceMixin:
 class ChatterboxEngine(ClonedVoiceMixin):
     """Chatterbox-Nano: 110M cloning model, expressive, MIT-licensed."""
 
+    # Not measured — chatterbox isn't installed on the machine fish and qwen
+    # were profiled on, and both of those degraded silently (dropped or
+    # invented audio, no error) above their measured ceilings. This 110M model
+    # is the smallest of the three, so it stays near the 300 it was known to
+    # cope with until someone runs the same profile on it.
+    chunk_limit = 400
+
     def __init__(self, voice: str, speed: float, device: str, language: str | None = None):
         _quiet()
         try:
@@ -266,13 +391,24 @@ class ChatterboxEngine(ClonedVoiceMixin):
         self.sr = self.model.sr
 
     def paragraph(self, text: str):
-        for group in split_sentences(text):
+        def synth(group):
             wav = _hushed(self.model.generate, group, audio_prompt_path=self.clip)
-            yield wav.squeeze(0).cpu().numpy()
+            return [wav.squeeze(0).cpu().numpy()]
+
+        yield from _synthesize(self, text, synth)
 
 
 class FishEngine(ClonedVoiceMixin):
     """Fish Audio OpenAudio S1-mini: 0.5B cloning model, research license."""
+
+    # Two ceilings, both measured on a 10 GB card. VRAM: the DAC decoder
+    # synthesizes a request's whole audio in one pass, so peak memory tracks
+    # request length — 300/600/800 chars peak at 6.0/7.2/8.7 GiB and 2000
+    # chars OOMs. Fidelity, and the tighter of the two: around 1000 chars the
+    # model starts ending generation early and silently drops text (one test
+    # paragraph came back 56% short, reproducibly). 600 keeps ~2.5 GB of
+    # headroom and stays well clear of the truncation region.
+    chunk_limit = 600
 
     def __init__(self, voice: str, speed: float, device: str, language: str | None = None):
         _quiet()
@@ -364,22 +500,29 @@ class FishEngine(ClonedVoiceMixin):
     def paragraph(self, text: str):
         from fish_speech.utils.schema import ServeTTSRequest
 
-        request = ServeTTSRequest(
-            text=text,
-            references=[self.reference],
-            max_new_tokens=2048,
-            seed=42,  # keep the timbre stable across paragraphs
-            format="wav",
-        )
-        segments = []
-        for result in _hushed(lambda: list(self.engine.inference(request))):
-            if result.code == "error":
-                raise result.error
-            if result.code == "segment" and result.audio is not None:
-                segments.append(result.audio[1])
-            elif result.code == "final" and result.audio is not None and not segments:
-                segments.append(result.audio[1])
-        yield from segments
+        # One request per chunk (see chunk_limit above). use_memory_cache
+        # reuses the encoded reference clip across requests instead of
+        # re-encoding it every time.
+        def synth(group):
+            request = ServeTTSRequest(
+                text=group,
+                references=[self.reference],
+                max_new_tokens=2048,
+                seed=42,  # keep the timbre stable across paragraphs
+                format="wav",
+                use_memory_cache="on",
+            )
+            segments = []
+            for result in _hushed(lambda: list(self.engine.inference(request))):
+                if result.code == "error":
+                    raise result.error
+                if result.code == "segment" and result.audio is not None:
+                    segments.append(result.audio[1])
+                elif result.code == "final" and result.audio is not None and not segments:
+                    segments.append(result.audio[1])
+            return segments
+
+        yield from _synthesize(self, text, synth)
 
 
 def build_engine(
@@ -388,6 +531,7 @@ def build_engine(
     speed: float,
     device: str,
     language: str | None = None,
+    max_chunk_chars: int | None = None,
 ):
     classes = {
         "kokoro": KokoroEngine,
@@ -395,4 +539,9 @@ def build_engine(
         "chatterbox": ChatterboxEngine,
         "fish": FishEngine,
     }
-    return classes[name](voice or "male", speed, device, language)
+    engine = classes[name](voice or "male", speed, device, language)
+    if max_chunk_chars is not None:
+        # Kokoro has no chunk_limit: it hands whole paragraphs to KPipeline,
+        # which chunks internally.
+        engine.chunk_limit = max(CHUNK_FLOOR, max_chunk_chars)
+    return engine

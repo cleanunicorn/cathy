@@ -94,9 +94,86 @@ class TestSplitSentences:
     def test_short_text_single_group(self):
         assert split_sentences("One. Two. Three.") == ["One. Two. Three."]
 
+    def test_paragraph_under_limit_stays_whole(self):
+        paragraph = "Sentence one is here. " * 20  # 440 chars
+        assert split_sentences(paragraph.strip(), limit=1000) == [paragraph.strip()]
+
     def test_splits_at_sentence_boundary(self):
         groups = split_sentences("Aaaa aaa. Bbbb bbb. Cccc ccc.", limit=12)
         assert groups == ["Aaaa aaa.", "Bbbb bbb.", "Cccc ccc."]
+
+    def test_groups_are_balanced(self):
+        # Greedy packing would leave a short tail; balanced packing spreads the
+        # sentences evenly across the smallest number of groups that fit.
+        groups = split_sentences("Aaaa aaa. " * 12, limit=50)
+        assert all(len(g) <= 50 for g in groups)
+        assert max(len(g) for g in groups) - min(len(g) for g in groups) <= 10
+
+    def test_long_sentence_splits_on_clauses(self):
+        text = ", ".join(["a clause that runs on"] * 20) + "."
+        groups = split_sentences(text, limit=60)
+        assert all(len(g) <= 60 for g in groups)
+        assert len(groups) > 1
+
+    def test_text_without_punctuation_still_splits(self):
+        groups = split_sentences("word " * 200, limit=100)
+        assert all(len(g) <= 100 for g in groups)
+        assert len(groups) > 1
+
+    def test_max_chunk_chars_flag(self):
+        from cathy.cli import parse_args
+
+        assert parse_args(["book.txt"]).max_chunk_chars is None
+        assert parse_args(["book.txt", "--max-chunk-chars", "400"]).max_chunk_chars == 400
+
+    def test_max_chunk_chars_rejects_useless_values(self):
+        import pytest
+
+        from cathy.cli import parse_args
+
+        # 0 used to be silently ignored and a negative value narrated the book
+        # one word at a time.
+        for bad in ("0", "-5", "10"):
+            with pytest.raises(SystemExit):
+                parse_args(["book.txt", "--max-chunk-chars", bad])
+
+    def test_oom_downshift_resplits_the_whole_remainder(self):
+        # Halving the limit has to re-split everything still queued, not just
+        # the chunk that failed: the rest was split at the size that OOMed and
+        # would fail again a chunk later.
+        from cathy.engines import CHUNK_FLOOR
+
+        text = ("The keeper climbed the spiral stairs slowly, holding a lantern. " * 36).strip()
+        limit, pending, done = 600, split_sentences(text, 600), []
+        while pending:
+            group = pending.pop(0)
+            if len(group) > 300:  # stand-in for the card's real ceiling
+                assert limit > CHUNK_FLOOR, "gave up while smaller chunks were succeeding"
+                limit = max(CHUNK_FLOOR, limit // 2)
+                pending = split_sentences(" ".join([group, *pending]), limit)
+            else:
+                done.append(group)
+        assert " ".join(done).split() == text.split()
+
+    def test_run_without_whitespace_respects_limit(self):
+        # No spaces to break on, so the split has to fall through to slicing.
+        groups = split_sentences("x" * 300, limit=100)
+        assert all(len(g) <= 100 for g in groups)
+        assert "".join(groups) == "x" * 300
+
+    def test_japanese_paragraph_splits(self):
+        # CJK sentence enders carry no trailing space, and the script has no
+        # inter-word spaces either, so neither the sentence regex nor the
+        # whitespace fallback would fire without explicit handling.
+        ja = "灯台守はゆっくりと螺旋階段を上った。外では波が打ち寄せていた。" * 12
+        groups = split_sentences(ja, limit=200)
+        assert all(len(g) <= 200 for g in groups)
+        assert "".join(groups).replace(" ", "") == ja.replace(" ", "")
+
+    def test_chinese_clauses_split(self):
+        zh = "他慢慢地爬上螺旋楼梯，一手提着灯笼，一手拿着旧皮书。" * 10
+        groups = split_sentences(zh, limit=150)
+        assert all(len(g) <= 150 for g in groups)
 
 
 class TestChapterSpec:

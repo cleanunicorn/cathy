@@ -9,6 +9,7 @@ import typing
 from pathlib import Path
 
 from cathy.engines import (
+    CHUNK_FLOOR,
     ENGINES,
     KOKORO_ALIASES,
     KOKORO_INTL,
@@ -147,6 +148,15 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
         "skipped",
     )
     parser.add_argument(
+        "--max-chunk-chars",
+        type=int,
+        metavar="N",
+        help="maximum characters sent to the engine at once; longer paragraphs "
+        "are split at sentence boundaries. Raise it for smoother prosody, "
+        "lower it if the engine runs out of VRAM. Ignored by kokoro, which "
+        "chunks internally; default: per engine",
+    )
+    parser.add_argument(
         "--cpu", action="store_true", help="force CPU even if a GPU is available"
     )
     parser.add_argument(
@@ -158,6 +168,10 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
             "input file is required — e.g. `cathy book.mobi -o book.m4b`; "
             "see `cathy help` for options and subcommands"
         )
+    if args.max_chunk_chars is not None and args.max_chunk_chars < CHUNK_FLOOR:
+        # Below this the engine is fed fragments too short to carry prosody,
+        # and 0 or a negative value would narrate a word at a time.
+        parser.error(f"--max-chunk-chars must be at least {CHUNK_FLOOR}")
     return args
 
 
@@ -879,7 +893,7 @@ def main(argv: list[str] | None = None) -> None:
     )
     engine = build_engine(
         args.engine, args.voice, args.speed if native_speed else 1.0, device,
-        args.language,
+        args.language, args.max_chunk_chars,
     )
 
     # Per-chapter checkpoints: an interrupted run resumes from here. The
