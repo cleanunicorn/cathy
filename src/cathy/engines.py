@@ -276,7 +276,12 @@ class KokoroEngine:
 class QwenEngine:
     """Qwen3-TTS-0.6B-CustomVoice: expressive preset speakers, ~real-time."""
 
-    chunk_limit = 1000
+    # Not VRAM-bound the way fish is — peak memory sits at ~2.8 GiB from 600
+    # to 1400 chars. The ceiling is fidelity: at 1400 chars generation ran
+    # long and produced 45% more audio than the text calls for (repetition or
+    # trailing babble). Clean at 600-1000 on both test texts; 800 keeps
+    # margin below where it starts to wander.
+    chunk_limit = 800
 
     def __init__(self, voice: str, speed: float, device: str, language: str | None = None):
         self.language = language or "English"
