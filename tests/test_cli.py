@@ -9,10 +9,14 @@ from cathy.cli import (
     concat_chapters,
     epub_book,
     ffmetadata,
+    folder_chapters,
     html_to_chapters,
+    natural_key,
     scale_metadata,
     text_to_chapters,
     trim_edges,
+    write_concat_list,
+    write_manifest,
 )
 from cathy.engines import split_sentences
 
@@ -230,6 +234,70 @@ class TestFfmpegHelpers:
         assert scale_metadata(None, 2.0) is None
         metadata = ffmetadata([("One", 0.0, 1.0)])
         assert scale_metadata(metadata, 1.0) is metadata
+
+
+class TestFolderInput:
+    def test_natural_key_orders_numbers(self):
+        names = ["ch10.wav", "ch2.wav", "ch1.wav"]
+        assert sorted(names, key=natural_key) == ["ch1.wav", "ch2.wav", "ch10.wav"]
+
+    def test_manifest_round_trip(self, tmp_path: Path):
+        chapters = [("One", ["a"]), ("Two", ["b"])]
+        paths = [tmp_path / "chapter-aaa.wav", tmp_path / "chapter-bbb.wav"]
+        for path in paths:
+            path.touch()
+        info = BookInfo(title="Book", author="Writer", cover=b"jpegbytes")
+        write_manifest(tmp_path, info, chapters, paths)
+        found_info, entries = folder_chapters(tmp_path)
+        assert entries == [(paths[0], "One"), (paths[1], "Two")]
+        assert found_info == BookInfo(title="Book", author="Writer")
+        assert (tmp_path / "cover.jpg").read_bytes() == b"jpegbytes"
+
+    def test_manifest_skips_chapters_never_narrated(self, tmp_path: Path):
+        chapters = [("One", ["a"]), ("Two", ["b"])]
+        paths = [tmp_path / "chapter-aaa.wav", tmp_path / "chapter-bbb.wav"]
+        paths[0].touch()
+        write_manifest(tmp_path, None, chapters, paths)
+        _, entries = folder_chapters(tmp_path)
+        assert entries == [(paths[0], "One")]
+
+    def test_plain_folder_sorted_naturally_with_stem_titles(self, tmp_path: Path):
+        for name in ("10 - Ten.mp3", "2 - Two.mp3", "notes.txt"):
+            (tmp_path / name).touch()
+        info, entries = folder_chapters(tmp_path)
+        assert info is None
+        assert [title for _, title in entries] == ["2 - Two", "10 - Ten"]
+
+    def test_hash_checkpoints_fall_back_to_mtime(self, tmp_path: Path):
+        import os
+
+        first = tmp_path / f"chapter-{'f' * 16}.wav"
+        second = tmp_path / f"chapter-{'0' * 16}.wav"
+        first.touch()
+        second.touch()
+        os.utime(first, (1_000, 1_000))
+        os.utime(second, (2_000, 2_000))
+        _, entries = folder_chapters(tmp_path)
+        assert entries == [(first, "Chapter 1"), (second, "Chapter 2")]
+
+    def test_half_written_checkpoints_ignored(self, tmp_path: Path):
+        (tmp_path / f"chapter-{'a' * 16}.wav").touch()
+        (tmp_path / f"chapter-{'b' * 16}.tmp.wav").touch()
+        _, entries = folder_chapters(tmp_path)
+        assert [path.name for path, _ in entries] == [f"chapter-{'a' * 16}.wav"]
+
+    def test_empty_folder_exits(self, tmp_path: Path):
+        import pytest
+
+        with pytest.raises(SystemExit):
+            folder_chapters(tmp_path)
+
+    def test_concat_list_quotes_apostrophes(self, tmp_path: Path):
+        audio = tmp_path / "it's here.wav"
+        audio.touch()
+        listing = tmp_path / "list.txt"
+        write_concat_list([(audio, "One")], listing)
+        assert listing.read_text() == f"file '{tmp_path}/it'\\''s here.wav'\n"
 
 
 class TestAudioPlumbing:
