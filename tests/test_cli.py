@@ -94,9 +94,43 @@ class TestSplitSentences:
     def test_short_text_single_group(self):
         assert split_sentences("One. Two. Three.") == ["One. Two. Three."]
 
+    def test_paragraph_under_limit_stays_whole(self):
+        paragraph = "Sentence one is here. " * 20  # 440 chars
+        assert split_sentences(paragraph.strip(), limit=1000) == [paragraph.strip()]
+
     def test_splits_at_sentence_boundary(self):
         groups = split_sentences("Aaaa aaa. Bbbb bbb. Cccc ccc.", limit=12)
         assert groups == ["Aaaa aaa.", "Bbbb bbb.", "Cccc ccc."]
+
+    def test_groups_are_balanced(self):
+        # Greedy packing would leave a short tail; balanced packing spreads the
+        # sentences evenly across the smallest number of groups that fit.
+        groups = split_sentences("Aaaa aaa. " * 12, limit=50)
+        assert all(len(g) <= 50 for g in groups)
+        assert max(len(g) for g in groups) - min(len(g) for g in groups) <= 10
+
+    def test_long_sentence_splits_on_clauses(self):
+        text = ", ".join(["a clause that runs on"] * 20) + "."
+        groups = split_sentences(text, limit=60)
+        assert all(len(g) <= 60 for g in groups)
+        assert len(groups) > 1
+
+    def test_text_without_punctuation_still_splits(self):
+        groups = split_sentences("word " * 200, limit=100)
+        assert all(len(g) <= 100 for g in groups)
+        assert len(groups) > 1
+
+    def test_max_chunk_chars_flag(self):
+        from cathy.cli import parse_args
+
+        assert parse_args(["book.txt"]).max_chunk_chars is None
+        assert parse_args(["book.txt", "--max-chunk-chars", "400"]).max_chunk_chars == 400
+
+    def test_unbreakable_run_is_not_lost(self):
+        # A single token longer than the limit can't be split; it must still
+        # come through rather than being dropped.
+        groups = split_sentences("x" * 300, limit=100)
+        assert "".join(groups) == "x" * 300
 
 
 class TestChapterSpec:

@@ -147,6 +147,15 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
         "skipped",
     )
     parser.add_argument(
+        "--max-chunk-chars",
+        type=int,
+        metavar="N",
+        help="maximum characters sent to the engine at once; longer paragraphs "
+        "are split at sentence boundaries. Raise it for smoother prosody, "
+        "lower it if the engine runs out of VRAM. Ignored by kokoro, which "
+        "chunks internally; default: per engine",
+    )
+    parser.add_argument(
         "--cpu", action="store_true", help="force CPU even if a GPU is available"
     )
     parser.add_argument(
@@ -879,7 +888,7 @@ def main(argv: list[str] | None = None) -> None:
     )
     engine = build_engine(
         args.engine, args.voice, args.speed if native_speed else 1.0, device,
-        args.language,
+        args.language, args.max_chunk_chars,
     )
 
     # Per-chapter checkpoints: an interrupted run resumes from here. The
